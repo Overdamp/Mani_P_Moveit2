@@ -40,7 +40,7 @@ def find_camera_device_id(target_name_pattern="USB Camera"):
     except Exception as e:
         print(f"Error finding camera: {e}")
         
-    return '3' # Default fallback
+    return '' # Default fallback
 def generate_launch_description():
     return LaunchDescription([
         # 1. ZED Camera (Start Immediately)
