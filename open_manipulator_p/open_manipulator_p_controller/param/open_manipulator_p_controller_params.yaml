@@ -1,0 +1,5 @@
+﻿open_manipulator_p_controller:
+  ros__parameters:
+    sim: false
+    control_period: 0.010
+    with_gripper: true
