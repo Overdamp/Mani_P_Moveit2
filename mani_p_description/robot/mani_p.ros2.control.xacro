@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+    <ros2_control name="OpenManipulatorPHardware" type="system">
+        <hardware>
+            <plugin>dynamixel_hardware/DynamixelHardware</plugin>
+            <param name="usb_port">/dev/ttyUSB0</param>
+            <param name="baud_rate">1000000</param>
+            <!-- <param name="use_dummy">true</param> -->
+        </hardware>
+        <joint name="J1">
+            <param name="id">1</param>
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="J2">
+            <param name="id">2</param>
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="J3">
+            <param name="id">3</param>
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="J4">
+            <param name="id">4</param>
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="J5">
+            <param name="id">5</param>
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        <joint name="J6">
+            <param name="id">6</param>
+            <command_interface name="position"/>
+            <state_interface name="position"/>
+            <state_interface name="velocity"/>
+        </joint>
+        
+    </ros2_control>
+</robot>

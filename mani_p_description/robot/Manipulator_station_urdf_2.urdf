@@ -1,0 +1,453 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="Manipulator_station_urdf_2">
+  <link
+    name="Base_link">
+    <inertial>
+      <origin
+        xyz="-0.0723308343849347 -5.76034482321908E-07 -0.138936926425514"
+        rpy="0 0 0" />
+      <mass
+        value="10.0719247157871" />
+      <inertia
+        ixx="0.225372672640189"
+        ixy="-5.47722770076954E-09"
+        ixz="6.39304001370768E-06"
+        iyy="0.215329726186438"
+        iyz="-1.29340124552014E-07"
+        izz="0.191427829854737" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/Base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/Base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="Base_arm">
+    <inertial>
+      <origin
+        xyz="-0.0413175046626831 -0.0208972801523338 0.0320669876730205"
+        rpy="0 0 0" />
+      <mass
+        value="4.1228447557393" />
+      <inertia
+        ixx="0.0113726436801867"
+        ixy="-0.000168232670470485"
+        ixz="0.00126187574890212"
+        iyy="0.00575937558728693"
+        iyz="0.000203632637247424"
+        izz="0.01188198101123" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/Base_arm.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.776470588235294 0.756862745098039 0.737254901960784 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/Base_arm.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="Base_arm_J0"
+    type="prismatic">
+    <origin
+      xyz="0 0 -0.0286185637769465"
+      rpy="0 0 0" />
+    <parent
+      link="Base_link" />
+    <child
+      link="Base_arm" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-0.7"
+      upper="0"
+      effort="200"
+      velocity="3" />
+  </joint>
+  <link
+    name="L1">
+    <inertial>
+      <origin
+        xyz="-1.10021436405816E-11 7.32518596352344E-05 0.0316911255153076"
+        rpy="0 0 0" />
+      <mass
+        value="0.29717061581658" />
+      <inertia
+        ixx="0.000303886041407238"
+        ixy="6.99241113621864E-15"
+        ixz="4.48809908102748E-15"
+        iyy="0.000133630920461156"
+        iyz="3.51430414313121E-06"
+        izz="0.000309461173077348" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/L1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/L1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J1"
+    type="revolute">
+    <origin
+      xyz="0 0 0.116000000000001"
+      rpy="0 0 3.14159265358979" />
+    <parent
+      link="Base_arm" />
+    <child
+      link="L1" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="200"
+      velocity="3" />
+  </joint>
+  <link
+    name="L2">
+    <inertial>
+      <origin
+        xyz="0.20185150893891 0.0161645619972203 -7.55770843141323E-05"
+        rpy="0 0 0" />
+      <mass
+        value="0.524148568163614" />
+      <inertia
+        ixx="0.000499774464110963"
+        ixy="3.40054540308558E-06"
+        ixz="-2.50463813782652E-06"
+        iyy="0.000697225471781578"
+        iyz="-2.48498255392067E-06"
+        izz="0.000526429291456387" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/L2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/L2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J2"
+    type="revolute">
+    <origin
+      xyz="0 0 0.0330000000008923"
+      rpy="1.5707963267949 -1.5707963267949 0" />
+    <parent
+      link="L1" />
+    <child
+      link="L2" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-1.57"
+      upper="0"
+      effort="200"
+      velocity="3" />
+  </joint>
+  <link
+    name="L3">
+    <inertial>
+      <origin
+        xyz="0.126152886971805 -0.0298818698825802 -0.000208214870130147"
+        rpy="0 0 0" />
+      <mass
+        value="0.481103074710301" />
+      <inertia
+        ixx="0.000303413270297186"
+        ixy="4.74930894283668E-06"
+        ixz="4.09553375298929E-08"
+        iyy="0.000668879602866701"
+        iyz="-4.78878066581936E-08"
+        izz="0.000667938888460889" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/L3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/L3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J3"
+    type="revolute">
+    <origin
+      xyz="0.264000000000014 0.0299999999999664 0"
+      rpy="0 0 0" />
+    <parent
+      link="L2" />
+    <child
+      link="L3" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-1.57"
+      upper="0"
+      effort="200"
+      velocity="3" />
+  </joint>
+  <link
+    name="L4">
+    <inertial>
+      <origin
+        xyz="0.000100097952944411 -0.00166222902026096 -0.0538849440312941"
+        rpy="0 0 0" />
+      <mass
+        value="0.0852756037730973" />
+      <inertia
+        ixx="3.19354778364782E-05"
+        ixy="1.01420009491847E-06"
+        ixz="2.04206635751293E-11"
+        iyy="1.50843843290278E-05"
+        iyz="-2.23825574257021E-11"
+        izz="3.23539402730483E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/L4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/L4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J4"
+    type="revolute">
+    <origin
+      xyz="0.294599574521192 -0.0300010233346771 0"
+      rpy="1.5707963267949 0 1.5707963267949" />
+    <parent
+      link="L3" />
+    <child
+      link="L4" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="200"
+      velocity="3" />
+  </joint>
+  <link
+    name="L5">
+    <inertial>
+      <origin
+        xyz="0.0648173973448019 -0.000207323517899316 0.000713506973517346"
+        rpy="0 0 0" />
+      <mass
+        value="0.138634418013041" />
+      <inertia
+        ixx="4.40601102397039E-05"
+        ixy="-2.23466572762377E-07"
+        ixz="1.74333782378955E-08"
+        iyy="6.66828144588062E-05"
+        iyz="1.71937506116129E-10"
+        izz="6.22589621626479E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/L5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/L5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J5"
+    type="revolute">
+    <origin
+      xyz="0.000180609076408655 -0.00300457659950193 -0.0491995745209299"
+      rpy="1.63069405070014 -1.5707963267949 0" />
+    <parent
+      link="L4" />
+    <child
+      link="L5" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-1.57"
+      upper="0"
+      effort="200"
+      velocity="3" />
+  </joint>
+  <link
+    name="Gripper">
+    <inertial>
+      <origin
+        xyz="-0.00239854584595212 -0.00129454529425393 0.164957767373349"
+        rpy="0 0 0" />
+      <mass
+        value="0.714884909554401" />
+      <inertia
+        ixx="0.000812741434805093"
+        ixy="8.80616625652652E-07"
+        ixz="2.57702333456977E-07"
+        iyy="0.000696069782175367"
+        iyz="2.52923825913591E-06"
+        izz="0.000289658112195835" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/Gripper.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://Manipulator_station_urdf_2/meshes/Gripper.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="J6"
+    type="revolute">
+    <origin
+      xyz="0.110994586070567 0.00109629513563991 0"
+      rpy="-1.5707963267949 -0.0575855851524496 -1.5609196334649" />
+    <parent
+      link="L5" />
+    <child
+      link="Gripper" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-1.57"
+      upper="1.57"
+      effort="200"
+      velocity="3" />
+  </joint>
+</robot>
