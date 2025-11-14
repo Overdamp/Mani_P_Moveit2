@@ -26,7 +26,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/Base_link.STL" />
+          filename="file://$(find mani_p_description)/meshes/table_visual.STL" />
       </geometry>
       <material
         name="">
@@ -40,7 +40,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/Base_link.STL" />
+          filename="file://$(find mani_p_description)/meshes/table_collision.STL" />
       </geometry>
     </collision>
   </link>
@@ -66,7 +66,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/Base_arm.STL" />
+          filename="file://$(find mani_p_description)/meshes/Base_arm_visual.stl" />
       </geometry>
       <material
         name="">
@@ -80,15 +80,15 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/Base_arm.STL" />
+          filename="file://$(find mani_p_description)/meshes/base_collision.STL" />
       </geometry>
     </collision>
   </link>
   <joint
     name="Base_arm_J0"
-    type="prismatic">
+    type="fixed">
     <origin
-      xyz="0 0 -0.0286185637769465"
+      xyz="0 0 0.04"
       rpy="0 0 0" />
     <parent
       link="Base_link" />
@@ -124,7 +124,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/L1.STL" />
+          filename="file://$(find mani_p_description)/meshes/L1_visual.stl" />
       </geometry>
       <material
         name="">
@@ -182,7 +182,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/L2.STL" />
+          filename="file://$(find mani_p_description)/meshes/L2_visual.stl" />
       </geometry>
       <material
         name="">
@@ -214,7 +214,7 @@
       xyz="0 0 -1" />
     <limit
       lower="-1.57"
-      upper="0"
+      upper="1.57"
       effort="200"
       velocity="3" />
   </joint>
@@ -240,7 +240,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/L3.STL" />
+          filename="file://$(find mani_p_description)/meshes/L3_visual.stl" />
       </geometry>
       <material
         name="">
@@ -263,7 +263,7 @@
     type="revolute">
     <origin
       xyz="0.264000000000014 0.0299999999999664 0"
-      rpy="0 0 0" />
+      rpy="0 0 0.7854" />
     <parent
       link="L2" />
     <child
@@ -271,8 +271,8 @@
     <axis
       xyz="0 0 -1" />
     <limit
-      lower="-1.57"
-      upper="0"
+      lower="-2.3562"
+      upper="1.57"
       effort="200"
       velocity="3" />
   </joint>
@@ -298,7 +298,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/L4.STL" />
+          filename="file://$(find mani_p_description)/meshes/L4_visual.stl" />
       </geometry>
       <material
         name="">
@@ -356,7 +356,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/L5.STL" />
+          filename="file://$(find mani_p_description)/meshes/L5_visual.stl" />
       </geometry>
       <material
         name="">
@@ -388,7 +388,7 @@
       xyz="0 0 -1" />
     <limit
       lower="-1.57"
-      upper="0"
+      upper="1.57"
       effort="200"
       velocity="3" />
   </joint>
@@ -414,7 +414,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/Gripper.STL" />
+          filename="file://$(find mani_p_description)/meshes/Gripper_visual.stl" />
       </geometry>
       <material
         name="">
@@ -428,7 +428,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="file://$(find mani_p_description)/meshes/Gripper.STL" />
+          filename="file://$(find mani_p_description)/meshes/Gripper_collision.STL" />
       </geometry>
     </collision>
   </link>

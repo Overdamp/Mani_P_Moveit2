@@ -27,7 +27,7 @@ def generate_launch_description():
     robot_description_path = os.path.join(get_package_share_directory(
                                     'mani_p_description'), 
                                     'robot',
-                                    'mani_p.core.xacro')
+                                    'mani_p.core2.xacro')
     
     robot_description = xacro.process_file(robot_description_path).toxml()
 

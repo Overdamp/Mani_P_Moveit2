@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:macro name="SimpleTransmissionPosition" params="joint n">
+    <transmission name="tran${n}">
+      <type>transmission_interface/SimpleTransmission</type>
+      <joint name="${joint}">
+        <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      </joint>
+      <actuator name="motor${n}">
+        <mechanicalReduction>1</mechanicalReduction>
+      </actuator>
+    </transmission>
+  </xacro:macro>
+
+  <xacro:macro name="SimpleTransmissionEffort" params="joint n">
+    <transmission name="tran${n}">
+      <type>transmission_interface/SimpleTransmission</type>
+      <joint name="${joint}">
+        <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      </joint>
+      <actuator name="motor${n}">
+        <mechanicalReduction>1</mechanicalReduction>
+      </actuator>
+    </transmission>
+  </xacro:macro>
+
+  <xacro:SimpleTransmissionPosition n="1" joint="J1" /> 
+  <xacro:SimpleTransmissionPosition n="2" joint="J2" /> 
+  <xacro:SimpleTransmissionPosition n="3" joint="J3" /> 
+  <xacro:SimpleTransmissionPosition n="4" joint="J4" /> 
+  <xacro:SimpleTransmissionPosition n="5" joint="J5" /> 
+  <xacro:SimpleTransmissionPosition n="6" joint="palm_joint" />
+  <xacro:SimpleTransmissionPosition n="7" joint="finger_middle_joint_l" />
+
+</robot>
