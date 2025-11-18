@@ -1,0 +1,21 @@
+octomap_server:
+  ros__parameters:
+    resolution: "0.05"  # <-- ใส่ " "
+    frame_id: "map"
+    base_frame_id: "Base_link"
+    height_map: false
+    filter_ground: false
+    latch: false
+    occupancy_min_z: "-5.0" # <-- ใส่ " "
+    occupancy_max_z: "10.0" # <-- ใส่ " "
+    
+    pointcloud_subscribers:
+      - topic: /zed/zed_node/point_cloud/cloud_registered
+        sensor_model:
+          type: PointCloud
+          max_range: "5.0"  # <-- ใส่ " "
+      
+      - topic: /camera/camera/depth/color/points
+        sensor_model:
+          type: PointCloud
+          max_range: "2.0"  # <-- ใส่ " "

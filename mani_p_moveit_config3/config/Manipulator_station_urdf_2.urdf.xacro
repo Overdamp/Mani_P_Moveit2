@@ -8,6 +8,8 @@
     <!-- Import control_xacro -->
     <xacro:include filename="$(find mani_p_description)/robot/mani_p.ros2.control2.xacro" />
     <xacro:Manipulator_station_urdf_2_ros2_control name="DynamixelSystem" initial_positions_file="$(arg initial_positions_file)"/>
+    <xacro:include filename="$(find mani_p_description)/robot/mani_p.sensors.xacro"/>
+
 
     <!-- <xacro:Manipulator_station_urdf_2_ros2_control name="FakeSystem" initial_positions_file="$(arg initial_positions_file)"/>  -->
 </robot>

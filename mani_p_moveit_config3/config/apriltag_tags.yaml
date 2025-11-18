@@ -1,0 +1,18 @@
+apriltag_node:
+  ros__parameters:
+    image_transport: "compressed"     # สำคัญ! ต้อง compressed กับ ZED เท่านั้น
+
+    tag_families: "tag36h11"          # หรือใส่เป็น list ได้ ["tag36h11", "tag25h9"]
+    publish_tf: true
+    
+    detector:
+      threads: 4
+      decimate: 1.0                   # 1.0 = แม่นยำสูงสุด (เปลี่ยนเป็น 2.0 ถ้า CPU ร้อน)
+      blur: 0.0
+      refine_edges: true
+      decode_sharpening: 0.25
+
+    tag:
+      ids: [1, 2, 3]                  # ใส่ ID ที่คุณมีจริง
+      sizes: [0.05, 0.05, 0.05]       # 5 cm (ปรับตาม tag จริงของคุณ)
+      frames: ["tag1", "tag2", "tag3"]

@@ -5,4 +5,5 @@
   <xacro:include filename="$(find mani_p_description)/robot/mani_p.ros2.control2.xacro"/>
   <xacro:include filename="$(find mani_p_description)/robot/mani_p.transmission2.xacro"/>
 
+  <xacro:include filename="$(find mani_p_description)/robot/mani_p.sensors.xacro"/>
 </robot>

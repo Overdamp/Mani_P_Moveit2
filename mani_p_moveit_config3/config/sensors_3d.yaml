@@ -1,0 +1,36 @@
+# The 'sensors' key must contain a list of the *names* of the sensors defined below.
+sensors:
+  - zed_head_camera
+  - realsense_wrist_camera
+
+# 1. ZED 2i (at the head) configuration is defined under its unique name
+zed_head_camera:
+  sensor_plugin: moveit_ros_perception/PointCloudOctomapUpdater
+  point_cloud_topic: /zed/zed_node/point_cloud/cloud_registered
+  max_range: 5.0
+  point_subsample: 1
+  padding_offset: 0.1
+  padding_scale: 1.0
+  filtered_cloud_topic: zed_filtered_cloud
+
+# 2. RealSense D435 (at the wrist) configuration is defined under its unique name
+realsense_wrist_camera:
+  sensor_plugin: moveit_ros_perception/PointCloudOctomapUpdater
+  point_cloud_topic: /camera/camera/depth/color/points
+  max_range: 2.0
+  point_subsample: 1
+  padding_offset: 0.1
+  padding_scale: 1.0
+  filtered_cloud_topic: realsense_filtered_cloud
+  
+  # Filter out Gripper Links
+  filtered_links:
+    - L5
+    - palm_link
+    - finger_bottom_l
+    - finger_link_bl
+    - finger_bottom_r
+    - finger_link_br
+    - finger_middle_l
+    - finger_middle_r
+

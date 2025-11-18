@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- Arguments for ZED Camera -->
+    <xacro:arg name="camera_name" default="zed" />
+    <xacro:arg name="camera_model" default="zed2i" />
+    <xacro:arg name="use_zed_localization" default="false" />
+    <xacro:arg name="custom_baseline"  default="0.0" />
+
+    <!-- If GNSS fusion is enabled the position of the antenna with respect to the camera mount point is required -->
+    <xacro:arg name="enable_gnss"   default="false" />
+    <xacro:arg name="gnss_x" default="0.0" />
+    <xacro:arg name="gnss_y" default="0.0" />
+    <xacro:arg name="gnss_z" default="0.0" />
+  
+    <xacro:include filename="$(find zed_wrapper)/urdf/zed_macro.urdf.xacro" />
+    <xacro:zed_camera name="$(arg camera_name)" model="$(arg camera_model)" custom_baseline="$(arg custom_baseline)" enable_gnss="$(arg enable_gnss)">
+      <origin xyz="$(arg gnss_x) $(arg gnss_y) $(arg gnss_z)" rpy="0 0 0"/>
+    </xacro:zed_camera>
+    
+    <!-- Joint to connect the ZED Camera to the robot -->
+    <xacro:if value="$(arg use_zed_localization)">
+      <!-- ZED Localization: camera_link is the parent, Base_link is the child -->
+      <joint name="$(arg camera_name)_joint" type="fixed">
+        <parent link="$(arg camera_name)_camera_link"/> <!-- Ensure Base_linkis defined in the included files -->
+        <child link="Base_link"/> <!-- Ensure zed_camera_link is defined in the ZED macro -->
+        <origin xyz="0.265 0 -0.85" rpy="0 0 0"/>
+      </joint>
+    </xacro:if>
+    
+    <xacro:unless value="$(arg use_zed_localization)">
+      <!-- No ZED Localization: camera_link is the child, Base_link is the parent -->
+      <joint name="$(arg camera_name)_joint" type="fixed">
+        <parent link="Base_link"/>
+        <child link="$(arg camera_name)_camera_link"/>
+        <origin xyz="-0.075 0 0.75" rpy="0 0 0"/>
+      </joint>
+    </xacro:unless>
+
+    <xacro:include filename="$(find realsense2_description)/urdf/_d435i.urdf.xacro"/>
+
+    <xacro:sensor_d435i parent="palm_link" name="d435i_camera">
+      <origin xyz="0.1 0 0.1" rpy="0 -1.57 0"/>
+    </xacro:sensor_d435i>
+
+</robot>
