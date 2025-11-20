@@ -13,6 +13,6 @@ apriltag_node:
       decode_sharpening: 0.25
 
     tag:
-      ids: [1, 2, 3]                  # ใส่ ID ที่คุณมีจริง
-      sizes: [0.05, 0.05, 0.05]       # 5 cm (ปรับตาม tag จริงของคุณ)
-      frames: ["tag1", "tag2", "tag3"]
+      ids: [1, 2, 3, 6]                  # ใส่ ID ที่คุณมีจริง
+      sizes: [0.05, 0.05, 0.05, 0.05]       # 5 cm (ปรับตาม tag จริงของคุณ)
+      frames: ["tag1", "tag2", "tag3", "tag6"]
