@@ -7,6 +7,11 @@ ament_package()
 
 install(PROGRAMS
   script/spawn_shelf_dynamic.py
+  script/smart_soft_snap.py
+  script/spawn_cubes.py
+  script/test_gripper_to_tag.py
+  script/approach_tag_smart.py
+  script/cartesian_push.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
