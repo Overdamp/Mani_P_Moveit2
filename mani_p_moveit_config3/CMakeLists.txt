@@ -12,6 +12,7 @@ install(PROGRAMS
   script/test_gripper_to_tag.py
   script/approach_tag_smart.py
   script/cartesian_push.py
+  script/visual_servo_align.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
