@@ -42,23 +42,23 @@ def analyze_and_plot(csv_file):
         label = fid
         
         # Plot X
-        axes[0, 0].plot(subset['elapsed_time'], subset['x'], label=label, color=color, alpha=0.7)
+        axes[0, 0].plot(subset['elapsed_time'].values, subset['x'].values, label=label, color=color, alpha=0.7)
         axes[0, 0].set_title('Position X (m)')
         axes[0, 0].set_ylabel('X (m)')
         
         # Plot Y
-        axes[0, 1].plot(subset['elapsed_time'], subset['y'], label=label, color=color, alpha=0.7)
+        axes[0, 1].plot(subset['elapsed_time'].values, subset['y'].values, label=label, color=color, alpha=0.7)
         axes[0, 1].set_title('Position Y (m)')
         axes[0, 1].set_ylabel('Y (m)')
         
         # Plot Z
-        axes[1, 0].plot(subset['elapsed_time'], subset['z'], label=label, color=color, alpha=0.7)
+        axes[1, 0].plot(subset['elapsed_time'].values, subset['z'].values, label=label, color=color, alpha=0.7)
         axes[1, 0].set_title('Position Z (m)')
         axes[1, 0].set_ylabel('Z (m)')
         axes[1, 0].set_xlabel('Time (s)')
 
         # Plot Yaw
-        axes[1, 1].plot(subset['elapsed_time'], subset['yaw'], label=label, color=color, alpha=0.7)
+        axes[1, 1].plot(subset['elapsed_time'].values, subset['yaw'].values, label=label, color=color, alpha=0.7)
         axes[1, 1].set_title('Orientation Yaw (rad)')
         axes[1, 1].set_ylabel('Yaw (rad)')
         axes[1, 1].set_xlabel('Time (s)')
@@ -85,15 +85,44 @@ def analyze_and_plot(csv_file):
     plt.tight_layout(rect=[0, 0.03, 1, 0.95]) # Make room for suptitle
 
     # 4. Print Statistics Table
-    print("\n" + "="*60)
+    print("\n" + "="*85)
     print(f"{'Frame':<20} | {'SD X (mm)':<10} | {'SD Y (mm)':<10} | {'SD Z (mm)':<10} | {'SD Yaw (deg)':<10}")
-    print("-" * 60)
+    print("-" * 85)
+    
+    stats_dict = {item['Frame']: item for item in stats_summary}
+    
     for stat in stats_summary:
         print(f"{stat['Frame']:<20} | {stat['SD_X']*1000:<10.4f} | {stat['SD_Y']*1000:<10.4f} | {stat['SD_Z']*1000:<10.4f} | {math.degrees(stat['SD_Yaw']):<10.4f}")
-    print("="*60 + "\n")
+    
+    print("-" * 85)
+    
+    # Calculate Improvement if both frames exist
+    raw_frame = 'tag11'
+    filtered_frame = 'shelf_filtered'
+    
+    if raw_frame in stats_dict and filtered_frame in stats_dict:
+        raw = stats_dict[raw_frame]
+        filt = stats_dict[filtered_frame]
+        
+        def calc_improv(raw_val, filt_val):
+            if raw_val == 0: return 0.0
+            return ((raw_val - filt_val) / raw_val) * 100.0
 
-    # Show Plot
-    plt.show()
+        imp_x = calc_improv(raw['SD_X'], filt['SD_X'])
+        imp_y = calc_improv(raw['SD_Y'], filt['SD_Y'])
+        imp_z = calc_improv(raw['SD_Z'], filt['SD_Z'])
+        imp_yaw = calc_improv(raw['SD_Yaw'], filt['SD_Yaw'])
+        
+        print(f"{'IMPROVEMENT (%)':<20} | {imp_x:<10.2f}% | {imp_y:<10.2f}% | {imp_z:<10.2f}% | {imp_yaw:<10.2f}%")
+        print(f"Note: Positive % means noise reduction (Better).")
+
+    print("="*85 + "\n")
+
+    # Save Plot to File (Better for remote/headless)
+    output_img = csv_file.replace('.csv', '.png')
+    plt.savefig(output_img)
+    print(f"📊 Graph saved to: {output_img}")
+    # plt.show() # Commented out to avoid display issues
 
 import math
 
