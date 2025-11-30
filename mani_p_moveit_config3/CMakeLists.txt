@@ -13,6 +13,7 @@ install(PROGRAMS
   script/approach_tag_smart.py
   script/cartesian_push.py
   script/visual_servo_align.py
+  script/coarse2fine_task.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

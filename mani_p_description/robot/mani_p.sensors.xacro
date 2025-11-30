@@ -40,7 +40,7 @@
     <xacro:include filename="$(find realsense2_description)/urdf/_d435i.urdf.xacro"/>
 
     <xacro:sensor_d435i parent="palm_link" name="d435i_camera">
-      <origin xyz="0.1 0 0.1" rpy="0 -1.57 0"/>
+      <origin xyz="0.15 0 0.055" rpy="0 -1.57 0"/>
     </xacro:sensor_d435i>
 
 </robot>
