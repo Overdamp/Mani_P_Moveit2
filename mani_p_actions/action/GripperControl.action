@@ -1,0 +1,8 @@
+# Goal
+bool open # true = open, false = close
+---
+# Result
+bool success
+---
+# Feedback
+string status

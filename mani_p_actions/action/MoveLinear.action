@@ -1,0 +1,8 @@
+# Goal
+float32 distance # meters. Positive = Forward (Z+), Negative = Backward (Z-)
+---
+# Result
+bool success
+---
+# Feedback
+float32 distance_remaining

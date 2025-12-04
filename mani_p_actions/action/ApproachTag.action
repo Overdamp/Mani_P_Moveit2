@@ -1,0 +1,12 @@
+# Goal
+string tag_name
+float32 distance
+float32 roll_offset
+---
+# Result
+bool success
+string message
+---
+# Feedback
+string current_state
+float32 distance_remaining

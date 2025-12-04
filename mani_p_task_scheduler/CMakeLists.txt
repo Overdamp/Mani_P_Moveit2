@@ -12,8 +12,18 @@ ament_package()
 
 install(PROGRAMS
   script/task_scheduler.py
-  script/BT_scheduler.py
+  script/task_scheduler.py
+  script/approach_action_server.py
+  script/visual_servo_action_server.py
+  script/adjust_level_action_server.py
+  script/move_linear_action_server.py
+  script/gripper_action_server.py
+  script/action_scheduler.py
   DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
 )
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/launch")

@@ -749,7 +749,7 @@
       link="finger_middle_l" />
     <axis
       xyz="0 0 -1" />
-    <limit lower="-0.84901" upper="0.45099" effort="10.0" velocity="1.0" />
+    <limit lower="-1.2" upper="0.45099" effort="10.0" velocity="1.0" />
   </joint>
   <link name="tcp_link">
     <inertial>
