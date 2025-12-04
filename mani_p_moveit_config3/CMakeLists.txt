@@ -14,6 +14,7 @@ install(PROGRAMS
   script/cartesian_push.py
   script/visual_servo_align.py
   script/coarse2fine_task.py
+  script/adjust_level.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

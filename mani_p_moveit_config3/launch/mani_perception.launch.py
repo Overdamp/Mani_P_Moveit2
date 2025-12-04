@@ -17,7 +17,25 @@ def generate_launch_description():
                 ])
             ),
             launch_arguments={
-                'camera_model': 'zed2i'
+                'camera_model': 'zed2i',
+                'camera_name': 'zed_mani',
+                'node_name': 'zed_node'
+            }.items()
+        ),
+
+        # 1.5 RealSense D435i (Start Immediately)
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                PathJoinSubstitution([
+                    FindPackageShare('realsense2_camera'),
+                    'launch',
+                    'rs_launch.py'
+                ])
+            ),
+            launch_arguments={
+                'camera_name': 'd435i_camera', # Match URDF name
+                'device_type': 'd435i',
+                'align_depth.enable': 'true'
             }.items()
         ),
 
@@ -32,7 +50,10 @@ def generate_launch_description():
                             'launch',
                             'apriltag_zed.launch.py'
                         ])
-                    )
+                    ),
+                    launch_arguments={
+                        'camera_name': 'zed_mani'
+                    }.items()
                 )
             ]
         ),

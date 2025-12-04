@@ -157,6 +157,16 @@ def main(args=None):
         print("   Example: ros2 run ... approach_tag_smart.py cartesian 0.15 (Move Forward)\n")
         return
 
+    target_tag = sys.argv[1]
+    distance = 0.15
+    roll_deg = 0.0
+
+    if len(sys.argv) > 2:
+        distance = float(sys.argv[2])
+    
+    if len(sys.argv) > 3:
+        roll_deg = float(sys.argv[3])
+
     # เริ่มทำงาน
     approacher = SmartApproacher()
     approacher.go_to_tag_offset(target_tag, distance, roll_deg)

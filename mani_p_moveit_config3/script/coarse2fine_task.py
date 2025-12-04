@@ -89,10 +89,20 @@ class Coarse2FineTask(Node):
         ori_con = OrientationConstraint()
         ori_con.header.frame_id = tag_frame_id
         ori_con.link_name = self.ee_link
-        ori_con.orientation.w = 1.0 # Default identity (Face tag)
-        ori_con.absolute_x_axis_tolerance = 0.2
-        ori_con.absolute_y_axis_tolerance = 0.2
-        ori_con.absolute_z_axis_tolerance = 0.1
+        
+        # We want the gripper to FACE the tag.
+        # Based on approach_tag_smart.py logic:
+        # q_x = 0.0, q_y = 1.0, q_z = 0.0, q_w = 0.0 (for 0 degree roll)
+        # This rotates the base orientation (facing tag) correctly.
+        
+        ori_con.orientation.x = 0.0
+        ori_con.orientation.y = 1.0
+        ori_con.orientation.z = 0.0
+        ori_con.orientation.w = 0.0
+        
+        ori_con.absolute_x_axis_tolerance = 0.5 # Relaxed
+        ori_con.absolute_y_axis_tolerance = 0.5 # Relaxed
+        ori_con.absolute_z_axis_tolerance = 0.1 # Strict Roll
         ori_con.weight = 1.0
 
         constraints.position_constraints.append(pos_con)
