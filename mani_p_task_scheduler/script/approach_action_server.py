@@ -130,14 +130,13 @@ class ApproachActionServer(Node):
             return ApproachTag.Result(success=False, message="MoveGroup unavailable")
 
         send_goal_future = self._move_group_client.send_goal_async(goal_msg)
-        # We are in async callback, so we can await? No, rclpy doesn't support await on futures directly like asyncio yet in all versions easily.
-        # But we can use synchronous wait because we are in a separate thread (ReentrantCallbackGroup + MultiThreadedExecutor usually).
-        # Actually, best practice in execute_callback is to use blocking calls if running in a separate thread, or handle futures carefully.
-        # Since we are using ReentrantCallbackGroup, we should be careful.
-        # Let's use a helper or just wait loop.
         
         # Wait for goal acceptance
         while not send_goal_future.done():
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info('Goal canceled before acceptance')
+                goal_handle.canceled()
+                return ApproachTag.Result(success=False, message="Canceled")
             time.sleep(0.1)
         
         goal_handle_moveit = send_goal_future.result()
@@ -150,6 +149,13 @@ class ApproachActionServer(Node):
         # Wait for result
         result_future = goal_handle_moveit.get_result_async()
         while not result_future.done():
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info('Cancellation requested. Cancelling MoveIt goal...')
+                cancel_future = goal_handle_moveit.cancel_goal_async()
+                while not cancel_future.done():
+                    time.sleep(0.01)
+                goal_handle.canceled()
+                return ApproachTag.Result(success=False, message="Canceled")
             time.sleep(0.1)
             
         result = result_future.result().result

@@ -67,7 +67,7 @@ class ShelfActionServer(Node):
         goal_handle.publish_feedback(feedback_msg)
         
         # 2. Execute Move
-        success = await self.move_to_pose(target_pose)
+        success = await self.move_to_pose(target_pose, goal_handle)
         
         if success:
             result.success = True
@@ -113,7 +113,7 @@ class ShelfActionServer(Node):
             self.get_logger().error(f"TF Error: {e}")
             return None
 
-    async def move_to_pose(self, pose_stamped):
+    async def move_to_pose(self, pose_stamped, goal_handle_server):
         if not self._move_group_client.wait_for_server(timeout_sec=5.0):
             self.get_logger().error('MoveGroup action server not available')
             return False
@@ -153,14 +153,38 @@ class ShelfActionServer(Node):
         
         self.get_logger().info("Sending MoveGroup goal...")
         send_goal_future = self._move_group_client.send_goal_async(goal_msg)
-        goal_handle = await send_goal_future
         
-        if not goal_handle.accepted:
+        # Wait for goal acceptance
+        while not send_goal_future.done():
+            if goal_handle_server.is_cancel_requested:
+                self.get_logger().info('Goal canceled before acceptance')
+                goal_handle_server.canceled()
+                return False
+            import time
+            time.sleep(0.1)
+
+        goal_handle_moveit = send_goal_future.result()
+        
+        if not goal_handle_moveit.accepted:
             self.get_logger().error('Goal rejected')
             return False
             
-        result_future = goal_handle.get_result_async()
-        result = await result_future
+        result_future = goal_handle_moveit.get_result_async()
+        
+        # Wait for result with cancellation check
+        while not result_future.done():
+            if goal_handle_server.is_cancel_requested:
+                self.get_logger().info('Cancellation requested. Cancelling MoveIt goal...')
+                cancel_future = goal_handle_moveit.cancel_goal_async()
+                while not cancel_future.done():
+                    import time
+                    time.sleep(0.01)
+                goal_handle_server.canceled()
+                return False
+            import time
+            time.sleep(0.1)
+
+        result = result_future.result()
         
         if result.result.error_code.val == 1: # SUCCESS
             return True

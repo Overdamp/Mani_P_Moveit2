@@ -91,7 +91,7 @@ class VisualServoActionServer(Node):
                 step_y *= scale
 
             # Move Relative
-            success = self.move_relative(step_x, step_y, 0.0)
+            success = self.move_relative(step_x, step_y, 0.0, goal_handle)
             if not success:
                 self.get_logger().error("Failed to move relative")
                 # Don't abort immediately, try again?
@@ -101,7 +101,7 @@ class VisualServoActionServer(Node):
         goal_handle.abort()
         return VisualServo.Result(success=False, final_error=dist_error)
 
-    def move_relative(self, x, y, z):
+    def move_relative(self, x, y, z, goal_handle_server=None):
         try:
             t_base = self.tf_buffer.lookup_transform(
                 self.base_frame, self.ee_link, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=1.0))
@@ -136,6 +136,8 @@ class VisualServoActionServer(Node):
 
         future = self._cartesian_client.call_async(req)
         while not future.done():
+            if goal_handle_server and goal_handle_server.is_cancel_requested:
+                return False
             time.sleep(0.01)
         response = future.result()
 
@@ -147,6 +149,8 @@ class VisualServoActionServer(Node):
         
         send_future = self._execute_client.send_goal_async(goal_msg)
         while not send_future.done():
+            if goal_handle_server and goal_handle_server.is_cancel_requested:
+                return False
             time.sleep(0.01)
         goal_handle = send_future.result()
         
@@ -155,6 +159,12 @@ class VisualServoActionServer(Node):
 
         res_future = goal_handle.get_result_async()
         while not res_future.done():
+            if goal_handle_server and goal_handle_server.is_cancel_requested:
+                self.get_logger().info('Cancellation requested. Cancelling trajectory...')
+                cancel_future = goal_handle.cancel_goal_async()
+                while not cancel_future.done():
+                    time.sleep(0.01)
+                return False
             time.sleep(0.01)
             
         return res_future.result().result.error_code.val == 1

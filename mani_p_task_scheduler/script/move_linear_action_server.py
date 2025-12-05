@@ -93,6 +93,9 @@ class MoveLinearActionServer(Node):
         
         future = self._cartesian_client.call_async(req)
         while not future.done():
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                return MoveLinear.Result(success=False)
             time.sleep(0.01)
         response = future.result()
         
@@ -107,6 +110,9 @@ class MoveLinearActionServer(Node):
         
         send_future = self._execute_client.send_goal_async(goal_msg)
         while not send_future.done():
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                return MoveLinear.Result(success=False)
             time.sleep(0.01)
         goal_handle_exec = send_future.result()
         
@@ -116,6 +122,13 @@ class MoveLinearActionServer(Node):
 
         res_future = goal_handle_exec.get_result_async()
         while not res_future.done():
+            if goal_handle.is_cancel_requested:
+                self.get_logger().info('Cancellation requested. Cancelling trajectory...')
+                cancel_future = goal_handle_exec.cancel_goal_async()
+                while not cancel_future.done():
+                    time.sleep(0.01)
+                goal_handle.canceled()
+                return MoveLinear.Result(success=False)
             time.sleep(0.01)
         result = res_future.result().result
         
