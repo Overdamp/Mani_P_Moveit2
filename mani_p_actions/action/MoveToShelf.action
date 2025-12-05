@@ -1,0 +1,10 @@
+# Goal
+int32 row  # 1 (Top), 2 (Middle), 3 (Bottom)
+int32 col  # 1 (Left), 2 (Center), 3 (Right)
+---
+# Result
+bool success
+string message
+---
+# Feedback
+string status

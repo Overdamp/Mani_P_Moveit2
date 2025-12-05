@@ -12,8 +12,10 @@ find_package(rclpy REQUIRED)
 ament_package()
 
 # Install Python scripts
-install(DIRECTORY
-  script
+install(PROGRAMS
+  script/smart_filter_node.py
+  script/tf_recorder.py
+  script/calibration_tool.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

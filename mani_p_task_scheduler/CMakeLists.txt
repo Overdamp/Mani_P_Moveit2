@@ -19,6 +19,8 @@ install(PROGRAMS
   script/move_linear_action_server.py
   script/gripper_action_server.py
   script/action_scheduler.py
+  script/shelf_navigator.py
+  script/shelf_action_server.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
