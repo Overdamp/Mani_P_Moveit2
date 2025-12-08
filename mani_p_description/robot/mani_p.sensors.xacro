@@ -37,10 +37,28 @@
       </joint>
     </xacro:unless>
 
-    <xacro:include filename="$(find realsense2_description)/urdf/_d435i.urdf.xacro"/>
+    <!-- Fisheye Camera Macro -->
+    <xacro:macro name="sensor_fisheye" params="parent name *origin">
+      <joint name="${name}_joint" type="fixed">
+        <xacro:insert_block name="origin" />
+        <parent link="${parent}"/>
+        <child link="${name}_link"/>
+      </joint>
+      <link name="${name}_link">
+        <visual>
+          <geometry>
+            <box size="0.03 0.03 0.03"/>
+          </geometry>
+          <material name="black">
+            <color rgba="0 0 0 1"/>
+          </material>
+        </visual>
+      </link>
+    </xacro:macro>
 
-    <xacro:sensor_d435i parent="palm_link" name="d435i_camera">
+    <!-- Fisheye Camera Instance -->
+    <xacro:sensor_fisheye parent="palm_link" name="fisheye_camera">
       <origin xyz="0.15 0 0.055" rpy="0 -1.57 0"/>
-    </xacro:sensor_d435i>
+    </xacro:sensor_fisheye>
 
 </robot>

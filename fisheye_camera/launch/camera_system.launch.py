@@ -12,7 +12,7 @@ def generate_launch_description():
     width_arg = DeclareLaunchArgument('width', default_value='640')
     height_arg = DeclareLaunchArgument('height', default_value='480')
     fps_arg = DeclareLaunchArgument('fps', default_value='30')
-    rotation_arg = DeclareLaunchArgument('rotation', default_value='0')
+    rotation_arg = DeclareLaunchArgument('rotation', default_value='180')
     
     calibration_file = PathJoinSubstitution([
         pkg_share, 'config', 'calibration.yaml'
