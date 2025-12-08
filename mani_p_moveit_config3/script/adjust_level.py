@@ -64,7 +64,7 @@ class LevelAdjuster(Node):
         # 3. Create New Orientation (Align with ZED Camera)
         # User Request: orientation of tcp_link = zed_left_camera_optical_frame
         
-        target_frame = "zed_left_camera_optical_frame"
+        target_frame = "zed_mani_left_camera_optical_frame"
         try:
             t_zed = self.tf_buffer.lookup_transform(
                 self.base_frame, target_frame, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=2.0))
