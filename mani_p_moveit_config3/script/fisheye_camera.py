@@ -14,27 +14,27 @@ class FisheyeCameraNode(Node):
         # ==========================================
         # 1. SETTINGS & PARAMETERS
         # ==========================================
-        self.declare_parameter('device_id', 1)      # เริ่มหาจาก video1
+        self.declare_parameter('device_id', 1)
         self.declare_parameter('frame_id', 'fisheye_camera_optical_frame')
         self.declare_parameter('width', 640)
         self.declare_parameter('height', 480)
         self.declare_parameter('fps', 30)
         
-        # ตัวแปรสำหรับเปิด/ปิด การแก้ภาพโค้ง (Undistort)
-        # False = โหมด Calibrate (ภาพดิบ แต่หมุนแล้ว) -> ใช้ตอนทำ Calibration
-        # True  = โหมดใช้งานจริง (ภาพตรง) -> ใช้ตอนรัน AprilTag
-        self.RECTIFY_MODE = False 
+        # ตั้งเป็น True เพื่อเริ่มแก้ภาพให้ตรง (Undistort)
+        self.RECTIFY_MODE = True 
 
         # ==========================================
-        # 2. CALIBRATION DATA (ใส่ค่าที่ได้จากการ Calibrate ตรงนี้)
+        # 2. CALIBRATION DATA (ค่าจริงของคุณ)
         # ==========================================
-        # ค่าสมมติ (ต้องเปลี่ยนเป็นเลขจริงที่คุณได้จาก ROS Calibration)
+        # Camera Matrix (K) จาก Log ของคุณ
         self.K = np.array([
-            [400.0, 0.0, 320.0],
-            [0.0, 400.0, 240.0],
+            [326.898006, 0.0, 311.476926],  # fx, 0, cx
+            [0.0, 327.975714, 231.136870],  # 0, fy, cy
             [0.0, 0.0, 1.0]
         ])
-        self.D = np.array([-0.1, 0.05, 0.0, 0.0, 0.0]) # k1, k2, p1, p2, k3
+        
+        # Distortion Coeffs (D) จาก Log ของคุณ
+        self.D = np.array([-0.285465, 0.067067, 0.000820, 0.002671, 0.0]) 
 
         # รับค่า Parameter
         self.target_device_id = self.get_parameter('device_id').value
@@ -43,8 +43,10 @@ class FisheyeCameraNode(Node):
         self.height = self.get_parameter('height').value
         self.fps = self.get_parameter('fps').value
 
-        # คำนวณ Optimal Matrix สำหรับการแก้ภาพ (ใช้เมื่อ RECTIFY_MODE = True)
+        # คำนวณ Optimal Matrix สำหรับการแก้ภาพ
         if self.RECTIFY_MODE:
+            # alpha=1 หมายถึงเก็บ pixel ทั้งหมดไว้ (อาจมีขอบดำ)
+            # alpha=0 หมายถึงซูมเข้าไปให้ไม่เห็นขอบดำ
             self.new_K, self.roi = cv2.getOptimalNewCameraMatrix(
                 self.K, self.D, (self.width, self.height), 1, (self.width, self.height)
             )
@@ -52,14 +54,13 @@ class FisheyeCameraNode(Node):
         # ==========================================
         # 3. SETUP ROS & CAMERA
         # ==========================================
-        # QoS Profile: Best Effort เพื่อความลื่นไหลของวิดีโอ
         qos_profile = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
             depth=10
         )
         
-        # Topic Name จะเปลี่ยนตามโหมด
+        # ชื่อ Topic: ถ้าแก้ภาพแล้วใช้ชื่อ image_rect ให้ AprilTag เอาไปใช้ได้เลย
         topic_name = 'fisheye_camera/image_rect' if self.RECTIFY_MODE else 'fisheye_camera/image_raw'
         self.image_pub = self.create_publisher(Image, topic_name, qos_profile)
         self.info_pub = self.create_publisher(CameraInfo, 'fisheye_camera/camera_info', qos_profile)
@@ -71,7 +72,6 @@ class FisheyeCameraNode(Node):
             self.get_logger().error("FATAL: No working camera found.")
             sys.exit(1)
             
-        # Force MJPG (สำคัญมากสำหรับ USB Bandwidth)
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
@@ -79,18 +79,14 @@ class FisheyeCameraNode(Node):
         
         self.get_logger().info(f"Camera ready on /dev/video{self.current_device_id} (Rotated 180)")
 
-        # Timer
         self.timer = self.create_timer(1.0/self.fps, self.timer_callback)
 
     def find_and_open_camera(self, preferred_id):
-        """วนหา Device ID อัตโนมัติ"""
-        # ลองตัวที่ตั้งค่ามาก่อน
         cap = cv2.VideoCapture(preferred_id)
         if self.check_camera(cap):
             self.current_device_id = preferred_id
             return cap
         
-        # ถ้าไม่ได้ ให้วนหา 0-10
         self.get_logger().warn(f"Device {preferred_id} failed. Scanning others...")
         cap.release()
         for i in range(10):
@@ -112,13 +108,14 @@ class FisheyeCameraNode(Node):
         ret, frame = self.cap.read()
         
         if ret:
-            # 1. หมุนภาพ 180 องศา (ทำเป็นอย่างแรกสุด)
+            # 1. หมุนภาพ 180 องศา
             frame = cv2.rotate(frame, cv2.ROTATE_180)
 
-            # 2. แก้ภาพโค้ง (ถ้าเปิดโหมด Rectify)
+            # 2. แก้ภาพโค้ง (Undistort)
             if self.RECTIFY_MODE:
                 frame = cv2.undistort(frame, self.K, self.D, None, self.new_K)
-                # (Optional) Crop ภาพถ้าต้องการตัดขอบดำ
+                
+                # ถ้าต้องการตัดขอบดำออก ให้ Uncomment 2 บรรทัดข้างล่างนี้
                 # x, y, w, h = self.roi
                 # frame = frame[y:y+h, x:x+w]
 
@@ -134,7 +131,7 @@ class FisheyeCameraNode(Node):
             
             self.image_pub.publish(msg)
             
-            # 4. Publish Camera Info (ส่งค่า K, D ไปด้วยเผื่อ node อื่นใช้)
+            # 4. Publish Camera Info (ส่งค่าที่ Calibrate แล้วไปให้ Node อื่น)
             info_msg = CameraInfo()
             info_msg.header = msg.header
             info_msg.width = self.width
@@ -142,9 +139,11 @@ class FisheyeCameraNode(Node):
             info_msg.distortion_model = "plumb_bob"
             info_msg.d = self.D.tolist()
             info_msg.k = self.K.flatten().tolist()
-            info_msg.p = [self.K[0,0], 0., self.K[0,2], 0., 
-                          0., self.K[1,1], self.K[1,2], 0., 
-                          0., 0., 1., 0.]
+            # Projection Matrix (P) จาก Log
+            info_msg.p = [237.989360, 0.0, 315.616170, 0.0,
+                          0.0, 266.872962, 227.688419, 0.0,
+                          0.0, 0.0, 1.0, 0.0]
+            
             self.info_pub.publish(info_msg)
 
     def destroy_node(self):
