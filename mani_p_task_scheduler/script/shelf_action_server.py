@@ -15,6 +15,81 @@ from moveit_msgs.action import MoveGroup
 from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint
 from rclpy.action import ActionClient
 
+# --- Internal Helper Class ---
+class ShelfCalculator:
+    def __init__(self, tf_buffer, logger):
+        self.tf_buffer = tf_buffer
+        self.logger = logger
+        
+        # Configuration
+        self.ref_tag = "tag11" # Top Center Tag
+        self.row_spacing = 0.40
+        self.col_spacing = 0.40
+        self.standoff_dist = 0.25
+
+    def get_target_pose(self, row, col, timeout_sec=5.0):
+        """
+        Calculate target pose in Base_link frame.
+        Row: 1 (Top), 2 (Middle), 3 (Bottom)
+        Col: 1 (Left), 2 (Center), 3 (Right)
+        """
+        # 1. Calculate offsets in Tag Frame
+        y_offset = row * self.row_spacing
+        
+        if col == 1:
+            x_offset = -self.col_spacing
+        elif col == 2:
+            x_offset = 0.0
+        elif col == 3:
+            x_offset = self.col_spacing
+        else:
+            self.logger.error("Invalid Column! Use 1, 2, or 3.")
+            return None
+
+        z_offset = self.standoff_dist
+        
+        self.logger.info(f"🎯 Target relative to Tag: X={x_offset}, Y={y_offset}, Z={z_offset}")
+        
+        # 2. Create Pose in Tag Frame
+        target_pose_tag = PoseStamped()
+        target_pose_tag.header.frame_id = self.ref_tag
+        target_pose_tag.header.stamp = rclpy.time.Time().to_msg() # Will be updated by transform
+        target_pose_tag.pose.position.x = x_offset
+        target_pose_tag.pose.position.y = y_offset
+        target_pose_tag.pose.position.z = z_offset
+        
+        # Orientation: Rotate 180 degrees around Y-axis.
+        target_pose_tag.pose.orientation.x = 0.0
+        target_pose_tag.pose.orientation.y = 1.0
+        target_pose_tag.pose.orientation.z = 0.0
+        target_pose_tag.pose.orientation.w = 0.0
+        
+        # 3. Transform to Base_link
+        try:
+            # Check if transform is available
+            if not self.tf_buffer.can_transform('Base_link', self.ref_tag, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=timeout_sec)):
+                self.logger.warn(f"⚠️ Cannot find transform Base_link -> {self.ref_tag} after {timeout_sec}s")
+                return None
+                
+            # Get the transform
+            transform = self.tf_buffer.lookup_transform('Base_link', self.ref_tag, rclpy.time.Time())
+            
+            # Update stamp to match transform time to avoid extrapolation errors
+            target_pose_tag.header.stamp = transform.header.stamp
+            
+            # Transform the PoseStamped (Pass the whole object, not just .pose)
+            target_pose_base_stamped = tf2_geometry_msgs.do_transform_pose(target_pose_tag, transform)
+            
+            # Ensure the result frame is correct
+            target_pose_base_stamped.header.frame_id = 'Base_link'
+            
+            return target_pose_base_stamped
+            
+        except Exception as e:
+            self.logger.error(f"Transform Error: {e}")
+            return None
+
+# --- Main Action Server ---
 class ShelfActionServer(Node):
     def __init__(self):
         super().__init__('shelf_action_server')
@@ -35,13 +110,13 @@ class ShelfActionServer(Node):
         # MoveIt Action Client
         self._move_group_client = ActionClient(self, MoveGroup, 'move_action', callback_group=self.callback_group)
         
-        # Shelf Config
-        self.ref_tag = "tag36h11:11" # Top Center Tag
-        self.row_spacing = 0.40
-        self.col_spacing = 0.40
-        self.standoff_dist = 0.25
+        # Internal Calculator
+        self.calculator = ShelfCalculator(self.tf_buffer, self.get_logger())
         
-        self.get_logger().info("📦 Shelf Action Server Ready")
+        # Publisher for visualization (Added feature from navigator)
+        self.goal_pub = self.create_publisher(PoseStamped, 'shelf_goal_pose', 10)
+        
+        self.get_logger().info("📦 Shelf Action Server Ready (Consolidated Version)")
 
     async def execute_callback(self, goal_handle):
         self.get_logger().info('Executing goal...')
@@ -55,13 +130,17 @@ class ShelfActionServer(Node):
         goal_handle.publish_feedback(feedback_msg)
         
         # 1. Calculate Target Pose
-        target_pose = self.get_target_pose(row, col)
+        target_pose = self.calculator.get_target_pose(row, col)
         
         if not target_pose:
             result.success = False
             result.message = "Failed to calculate target pose (Tag not visible?)"
             goal_handle.abort()
             return result
+            
+        # Visualize Target
+        self.goal_pub.publish(target_pose)
+        self.get_logger().info("📡 Published target to /shelf_goal_pose for visualization")
             
         feedback_msg.status = "Planning path..."
         goal_handle.publish_feedback(feedback_msg)
@@ -79,39 +158,6 @@ class ShelfActionServer(Node):
             goal_handle.abort()
             
         return result
-
-    def get_target_pose(self, row, col):
-        # ... (Logic from shelf_navigator.py) ...
-        y_offset = row * self.row_spacing
-        
-        if col == 1: x_offset = -self.col_spacing
-        elif col == 2: x_offset = 0.0
-        elif col == 3: x_offset = self.col_spacing
-        else: return None
-        
-        z_offset = self.standoff_dist
-        
-        target_pose_tag = PoseStamped()
-        target_pose_tag.header.frame_id = self.ref_tag
-        target_pose_tag.header.stamp = self.get_clock().now().to_msg()
-        target_pose_tag.pose.position.x = x_offset
-        target_pose_tag.pose.position.y = y_offset
-        target_pose_tag.pose.position.z = z_offset
-        target_pose_tag.pose.orientation.w = 1.0 # Identity (Face same way as tag)
-        
-        try:
-            if not self.tf_buffer.can_transform('Base_link', self.ref_tag, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=2.0)):
-                return None
-            transform = self.tf_buffer.lookup_transform('Base_link', self.ref_tag, rclpy.time.Time())
-            target_pose_base = tf2_geometry_msgs.do_transform_pose(target_pose_tag.pose, transform)
-            
-            result = PoseStamped()
-            result.header.frame_id = 'Base_link'
-            result.pose = target_pose_base
-            return result
-        except Exception as e:
-            self.get_logger().error(f"TF Error: {e}")
-            return None
 
     async def move_to_pose(self, pose_stamped, goal_handle_server):
         if not self._move_group_client.wait_for_server(timeout_sec=5.0):
@@ -133,9 +179,9 @@ class ShelfActionServer(Node):
         pcm.target_point_offset.y = 0.0
         pcm.target_point_offset.z = 0.0
         
-        # Create a small box for the target position
+        # Create a small box for the target position (Relaxed to 5cm)
         from shape_msgs.msg import SolidPrimitive
-        pcm.constraint_region.primitives.append(SolidPrimitive(type=SolidPrimitive.BOX, dimensions=[0.01, 0.01, 0.01]))
+        pcm.constraint_region.primitives.append(SolidPrimitive(type=SolidPrimitive.BOX, dimensions=[0.05, 0.05, 0.05]))
         pcm.constraint_region.primitive_poses.append(pose_stamped.pose)
         pcm.weight = 1.0
         
