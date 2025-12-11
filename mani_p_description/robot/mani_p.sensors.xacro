@@ -58,7 +58,7 @@
 
     <!-- Fisheye Camera Instance -->
     <xacro:sensor_fisheye parent="palm_link" name="fisheye_camera">
-      <origin xyz="0.15 0 0.055" rpy="0 -1.57 0"/>
+      <origin xyz="0.13 0 0.04" rpy="0 -1.57 0"/>
     </xacro:sensor_fisheye>
 
 </robot>

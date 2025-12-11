@@ -24,20 +24,20 @@ def generate_launch_description():
         ),
 
         # 1.5 RealSense D435i (Start Immediately)
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                PathJoinSubstitution([
-                    FindPackageShare('realsense2_camera'),
-                    'launch',
-                    'rs_launch.py'
-                ])
-            ),
-            launch_arguments={
-                'camera_name': 'd435i_camera', # Match URDF name
-                'device_type': 'd435i',
-                'align_depth.enable': 'true'
-            }.items()
-        ),
+        # IncludeLaunchDescription(
+        #     PythonLaunchDescriptionSource(
+        #         PathJoinSubstitution([
+        #             FindPackageShare('realsense2_camera'),
+        #             'launch',
+        #             'rs_launch.py'
+        #         ])
+        #     ),
+        #     launch_arguments={
+        #         'camera_name': 'd435i_camera', # Match URDF name
+        #         'device_type': 'd435i',
+        #         'align_depth.enable': 'true'
+        #     }.items()
+        # ),
 
         # 2. AprilTag Detection (Wait 5s for Camera)
         TimerAction(
