@@ -24,6 +24,8 @@ install(PROGRAMS
   script/BT_scheduler.py    
   script/check_tags.py
   script/shelf_action_server.py
+  script/debug_shelf_alignment.py
+  script/move_to_named_target_action_server.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

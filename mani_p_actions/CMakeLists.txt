@@ -16,6 +16,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "action/MoveLinear.action"
   "action/GripperControl.action"
   "action/MoveToShelf.action"
+  "action/MoveToNamedTarget.action"
 )
 
 if(BUILD_TESTING)

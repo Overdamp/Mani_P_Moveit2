@@ -15,8 +15,8 @@ class CalibrationTool(Node):
         
         # Frames to monitor
         self.camera_frame = "zed_left_camera_optical_frame" # Adjust if needed
-        self.shelf_tag_frame = "tag36h11:0" # Shelf Tag (Example)
-        self.cube_tag_frame = "tag36h11:2"  # Cube Tag (Example)
+        self.shelf_tag_frame = "tag11" # Shelf Tag (Example)
+        self.cube_tag_frame = "tag2"  # Cube Tag (Example)
         
         self.timer = self.create_timer(1.0, self.timer_callback)
         

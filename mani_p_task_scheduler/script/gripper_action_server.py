@@ -8,7 +8,10 @@ from moveit_msgs.msg import MoveItErrorCodes
 import time
 
 # Custom Action Interface
+# Custom Action Interface
 from mani_p_actions.action import GripperControl
+from sensor_msgs.msg import JointState
+from tf2_ros import Buffer, TransformListener
 
 class GripperActionServer(Node):
 
@@ -29,7 +32,33 @@ class GripperActionServer(Node):
         self._move_group_client = ActionClient(self, MoveGroup, 'move_action', callback_group=self.cb_group)
         
         self.gripper_group_name = "gripper"
+        self.gripper_group_name = "gripper"
         self.get_logger().info('✅ Gripper Action Server Ready (MoveIt Named Targets).')
+        
+        # TF Setup
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+        
+        # Joint State Subscription
+        self.current_joints = {}
+        self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
+
+    def joint_callback(self, msg):
+        for i, name in enumerate(msg.name):
+            self.current_joints[name] = msg.position[i]
+
+    def log_status(self):
+        try:
+            if self.tf_buffer.can_transform('Base_link', 'tcp_link', rclpy.time.Time()):
+                t = self.tf_buffer.lookup_transform('Base_link', 'tcp_link', rclpy.time.Time())
+                x = t.transform.translation.x
+                y = t.transform.translation.y
+                z = t.transform.translation.z
+                
+                joints_str = ", ".join([f"{k}: {v:.3f}" for k, v in self.current_joints.items() if 'J' in k or 'palm' in k])
+                print(f"📍 TCP: [{x:.3f}, {y:.3f}, {z:.3f}] | 🦾 Joints: {{{joints_str}}}")
+        except Exception:
+            pass
 
     async def execute_callback(self, goal_handle):
         is_open = goal_handle.request.open
@@ -110,7 +139,8 @@ class GripperActionServer(Node):
 
         res_future = goal_handle_moveit.get_result_async()
         while not res_future.done():
-            time.sleep(0.01)
+            self.log_status()
+            time.sleep(0.5)
         result = res_future.result().result
         
         if result.error_code.val == 1:

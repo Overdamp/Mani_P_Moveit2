@@ -33,4 +33,10 @@ def generate_launch_description():
             name='shelf_action_server',
             output='screen'
         ),
+        Node(
+            package='mani_p_task_scheduler',
+            executable='move_to_named_target_action_server.py',
+            name='move_to_named_target_action_server',
+            output='screen'
+        ),
     ])

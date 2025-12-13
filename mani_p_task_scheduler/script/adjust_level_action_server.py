@@ -11,7 +11,9 @@ import math
 import time
 
 # Custom Action Interface
+# Custom Action Interface
 from mani_p_actions.action import AdjustLevel
+from sensor_msgs.msg import JointState
 
 class AdjustLevelActionServer(Node):
 
@@ -39,6 +41,27 @@ class AdjustLevelActionServer(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.get_logger().info('✅ Adjust Level Action Server Ready.')
+        
+        # Joint State Subscription
+        self.current_joints = {}
+        self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
+
+    def joint_callback(self, msg):
+        for i, name in enumerate(msg.name):
+            self.current_joints[name] = msg.position[i]
+
+    def log_status(self):
+        try:
+            if self.tf_buffer.can_transform(self.base_frame, self.ee_link, rclpy.time.Time()):
+                t = self.tf_buffer.lookup_transform(self.base_frame, self.ee_link, rclpy.time.Time())
+                x = t.transform.translation.x
+                y = t.transform.translation.y
+                z = t.transform.translation.z
+                
+                joints_str = ", ".join([f"{k}: {v:.3f}" for k, v in self.current_joints.items() if 'J' in k or 'palm' in k])
+                print(f"📍 TCP: [{x:.3f}, {y:.3f}, {z:.3f}] | 🦾 Joints: {{{joints_str}}}")
+        except Exception:
+            pass
 
     async def execute_callback(self, goal_handle):
         self.get_logger().info("🔄 Adjusting Level (Align with ZED)...")
@@ -131,7 +154,9 @@ class AdjustLevelActionServer(Node):
                     time.sleep(0.01)
                 goal_handle.canceled()
                 return AdjustLevel.Result(success=False)
-            time.sleep(0.01)
+            
+            self.log_status()
+            time.sleep(0.5)
         result = res_future.result().result
         
         if result.error_code.val == 1:
