@@ -113,7 +113,7 @@ class FisheyeCameraNode(Node):
         msg.data = frame.tobytes()
         
         self.image_pub.publish(msg)
-        self.get_logger().info("Published Image") # Debug
+        self.get_logger().info(f"Published Image (Subs: {self.image_pub.get_subscription_count()})") # Debug
         
         # Camera Info Msg
         self.camera_info.header.stamp = stamp
