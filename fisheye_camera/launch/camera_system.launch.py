@@ -11,7 +11,7 @@ def generate_launch_description():
     device_id_arg = DeclareLaunchArgument('device_id', default_value='3')
     width_arg = DeclareLaunchArgument('width', default_value='640')
     height_arg = DeclareLaunchArgument('height', default_value='480')
-    fps_arg = DeclareLaunchArgument('fps', default_value='30')
+    fps_arg = DeclareLaunchArgument('fps', default_value='15')
     rotation_arg = DeclareLaunchArgument('rotation', default_value='180')
     
     calibration_file = PathJoinSubstitution([

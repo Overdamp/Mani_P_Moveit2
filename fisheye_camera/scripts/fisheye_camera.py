@@ -2,10 +2,13 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
+from cv_bridge import CvBridge
 import cv2
 import sys
 import numpy as np
 import yaml
+
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 class FisheyeCameraNode(Node):
     def __init__(self):
@@ -28,9 +31,19 @@ class FisheyeCameraNode(Node):
         self.calib_file = self.get_parameter('calibration_file').value
         self.rotation = self.get_parameter('rotation').value
         
+        # QoS Profile (Reliable)
+        qos_profile = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+        
         # Publishers
-        self.image_pub = self.create_publisher(Image, 'image_raw', 10)
-        self.info_pub = self.create_publisher(CameraInfo, 'camera_info', 10)
+        self.image_pub = self.create_publisher(Image, 'image_raw', qos_profile)
+        self.info_pub = self.create_publisher(CameraInfo, 'camera_info', qos_profile)
+        
+        # Bridge
+        self.bridge = CvBridge()
         
         # Load Calibration
         self.camera_info = self.load_camera_info()
@@ -86,8 +99,6 @@ class FisheyeCameraNode(Node):
             self.get_logger().warn("Failed to read frame")
             return
         
-        self.get_logger().info(f"Frame read: {frame.shape}") # Debug
-        
         # Rotation
         if self.rotation == 90:
             frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
@@ -101,16 +112,10 @@ class FisheyeCameraNode(Node):
         
         stamp = self.get_clock().now().to_msg()
         
-        # Image Msg
-        msg = Image()
+        # Image Msg (Using CvBridge)
+        msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
         msg.header.stamp = stamp
         msg.header.frame_id = self.frame_id
-        msg.height = h
-        msg.width = w
-        msg.encoding = "bgr8"
-        msg.is_bigendian = 0
-        msg.step = w * 3
-        msg.data = frame.tobytes()
         
         self.image_pub.publish(msg)
         self.get_logger().info(f"Published Image (Subs: {self.image_pub.get_subscription_count()})") # Debug
