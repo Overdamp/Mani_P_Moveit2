@@ -98,12 +98,25 @@ class VisualServoActionServer(Node):
 
             # 1. Get Tag Pose in Base Frame
             try:
-                if not self.tf_buffer.can_transform(self.base_frame, tag_frame, rclpy.time.Time(), timeout=Duration(seconds=1.0)):
-                    self.get_logger().warn(f"⚠️ Cannot see {tag_frame}")
+                target_frame = tag_frame
+                # Fallback: Check for 'tag36h11:ID' format if specific frame not found
+                if not self.tf_buffer.can_transform(self.base_frame, target_frame, rclpy.time.Time()):
+                     # Extract ID from 'tagX' or 'tagX_fisheye'
+                    import re
+                    match = re.search(r'tag(\d+)', tag_frame)
+                    if match:
+                        tag_id = match.group(1)
+                        fallback_frame = f"tag36h11:{tag_id}"
+                        if self.tf_buffer.can_transform(self.base_frame, fallback_frame, rclpy.time.Time()):
+                            self.get_logger().warn(f"⚠️ Using fallback frame: {fallback_frame}")
+                            target_frame = fallback_frame
+
+                if not self.tf_buffer.can_transform(self.base_frame, target_frame, rclpy.time.Time(), timeout=Duration(seconds=1.0)):
+                    self.get_logger().warn(f"⚠️ Cannot see {target_frame}")
                     time.sleep(0.5)
                     continue
                     
-                t_base_tag = self.tf_buffer.lookup_transform(self.base_frame, tag_frame, rclpy.time.Time())
+                t_base_tag = self.tf_buffer.lookup_transform(self.base_frame, target_frame, rclpy.time.Time())
                 
                 # 2. Calculate Target Pose (Tag + Standoff)
                 target_pose_tag = PoseStamped()

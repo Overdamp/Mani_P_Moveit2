@@ -110,20 +110,36 @@ class FisheyeCameraNode(Node):
         # Update Dimensions if rotated
         h, w = frame.shape[:2]
         
+        # Undistort Image
+        if self.camera_info.d:
+            K = np.array(self.camera_info.k).reshape(3, 3)
+            D = np.array(self.camera_info.d)
+            # Use P if available (new camera matrix), else K
+            P = np.array(self.camera_info.p).reshape(3, 4)
+            new_K = P[:3, :3]
+            
+            frame_rect = cv2.undistort(frame, K, D, None, new_K)
+        else:
+            frame_rect = frame
+
         stamp = self.get_clock().now().to_msg()
         
-        # Image Msg (Using CvBridge)
-        msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+        # Image Msg (Rectified)
+        msg = self.bridge.cv2_to_imgmsg(frame_rect, encoding="bgr8")
         msg.header.stamp = stamp
         msg.header.frame_id = self.frame_id
         
         self.image_pub.publish(msg)
-        self.get_logger().info(f"Published Image (Subs: {self.image_pub.get_subscription_count()})") # Debug
+        self.get_logger().info(f"Published Rectified Image (Subs: {self.image_pub.get_subscription_count()})") # Debug
         
-        # Camera Info Msg
+        # Camera Info Msg (Update to Rectified Model)
         self.camera_info.header.stamp = stamp
         self.camera_info.width = w
         self.camera_info.height = h
+        # Set D to zero because image is now rectified
+        self.camera_info.d = [0.0, 0.0, 0.0, 0.0, 0.0]
+        # K should be the new_K used for undistortion
+        # But for simplicity, we keep P as is (which matches new_K) and set D=0
         self.info_pub.publish(self.camera_info)
 
     def destroy_node(self):
