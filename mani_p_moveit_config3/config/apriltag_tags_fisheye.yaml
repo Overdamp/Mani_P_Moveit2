@@ -1,0 +1,19 @@
+apriltag_node:
+  ros__parameters:
+    image_transport: "raw"            # Fisheye uses raw (or whatever image_proc outputs)
+
+    tag_families: "tag36h11"
+    publish_tf: true
+    
+    detector:
+      threads: 2
+      decimate: 1.0
+      blur: 0.0
+      refine: true
+      refine_edges: true
+      decode_sharpening: 0.25
+
+    tag:
+      ids: [1, 2, 3, 6, 11]
+      sizes: [0.04, 0.04, 0.04, 0.04, 0.10]
+      frames: ["tag1_fisheye", "tag2_fisheye", "tag3_fisheye", "tag6_fisheye", "tag11_fisheye"]  # Suffix _fisheye

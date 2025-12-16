@@ -69,11 +69,11 @@ def generate_launch_description():
             name='apriltag_node',
             output='screen',
             remappings=[
-                ('image_rect', '/image_rect'),
+                ('image_rect', '/fisheye_camera/image_raw'),
                 ('camera_info', '/fisheye_camera/camera_info')
             ],
             parameters=[
-                PathJoinSubstitution([FindPackageShare('mani_p_moveit_config3'), 'config', 'apriltag_tags.yaml']),
+                PathJoinSubstitution([FindPackageShare('mani_p_moveit_config3'), 'config', 'apriltag_tags_fisheye.yaml']),
                 {'image_transport': 'raw'} # Override to use raw image from image_proc
             ]
         )

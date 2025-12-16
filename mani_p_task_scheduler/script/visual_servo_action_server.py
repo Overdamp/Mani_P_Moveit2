@@ -78,7 +78,7 @@ class VisualServoActionServer(Node):
             pass
 
     async def execute_callback(self, goal_handle):
-        tag_frame = goal_handle.request.tag_name
+        tag_frame = goal_handle.request.tag_name + "_fisheye" # Use Fisheye specific frame
         tolerance = goal_handle.request.tolerance
         target_standoff = 0.25 # เมตร (ระยะห่างที่ต้องการ)
         
