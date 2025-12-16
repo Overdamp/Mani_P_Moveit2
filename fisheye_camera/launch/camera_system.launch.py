@@ -56,6 +56,9 @@ def generate_launch_description():
                 ('camera_info', '/fisheye_camera/camera_info'),
                 ('image_rect', '/image_rect'),
                 ('image_rect_color', '/image_rect_color')
+            ],
+            parameters=[
+                {'image_transport': 'raw'}
             ]
         ),
 

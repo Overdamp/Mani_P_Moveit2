@@ -16,7 +16,11 @@ from geometry_msgs.msg import PoseStamped, Pose
 # Interfaces
 from mani_p_actions.action import VisualServo
 from moveit_msgs.srv import GetCartesianPath
-from moveit_msgs.action import ExecuteTrajectory
+# MoveIt
+from moveit_msgs.action import MoveGroup, ExecuteTrajectory
+from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint
+from moveit_msgs.srv import GetCartesianPath
+from rclpy.action import ActionClient
 from sensor_msgs.msg import JointState
 
 class VisualServoActionServer(Node):
@@ -43,17 +47,19 @@ class VisualServoActionServer(Node):
 
         # 2. Clients เพื่อคุยกับ MoveIt
         self._execute_client = ActionClient(self, ExecuteTrajectory, 'execute_trajectory', callback_group=self.cb_group)
+        self._move_group_client = ActionClient(self, MoveGroup, 'move_action', callback_group=self.cb_group) # PTP Client
         self._cartesian_client = self.create_client(GetCartesianPath, 'compute_cartesian_path', callback_group=self.cb_group)
         
         # 3. TF Listener Setup
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        # 4. Debugging Tools (Joint State)
+        # 4. Debugging Tools
         self.current_joints = {}
         self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
+        self.target_pub = self.create_publisher(PoseStamped, 'visual_servo_target', 10) # Debug Publisher
 
-        self.get_logger().info('✅ Visual Servo Action Server (Optimized) Ready.')
+        self.get_logger().info('✅ Visual Servo Action Server (Hybrid PTP/Cartesian) Ready.')
 
     def joint_callback(self, msg):
         for i, name in enumerate(msg.name):
@@ -81,7 +87,7 @@ class VisualServoActionServer(Node):
         max_retries = 10
         
         result = VisualServo.Result()
-        dist_error = 0.0 # Initialize to avoid UnboundLocalError
+        dist_error = 0.0 
         
         for attempt in range(max_retries):
             # 0. Check Cancellation
@@ -100,41 +106,34 @@ class VisualServoActionServer(Node):
                 t_base_tag = self.tf_buffer.lookup_transform(self.base_frame, tag_frame, rclpy.time.Time())
                 
                 # 2. Calculate Target Pose (Tag + Standoff)
-                # เราต้องการให้ TCP อยู่หน้า Tag ตามแกน Z ของ Tag
-                # สร้าง Pose ของเป้าหมายใน Frame ของ Tag ก่อน
                 target_pose_tag = PoseStamped()
                 target_pose_tag.header.frame_id = tag_frame
                 target_pose_tag.header.stamp = t_base_tag.header.stamp
-                target_pose_tag.pose.position.z = target_standoff # ถอยออกมาตามแกน Z
+                target_pose_tag.pose.position.z = target_standoff 
                 
-                # Orientation:
-                # เราต้องการให้ TCP หันหน้าเข้าหา Tag
-                # ถ้า Tag Z ชี้ออกมา, และ TCP Z ชี้ออกจากมือ
-                # เราต้องหมุน TCP ให้สวนทางกับ Tag (Rotate 180 รอบแกน X หรือ Y)
-                # Quaternion for 180 deg rotation around X-axis: [1, 0, 0, 0] -> [0, 1, 0, 0] (x, y, z, w)
-                # ลองใช้ Identity ก่อน (Orientation เดียวกับ Tag) แล้วดูว่ามือหันทางไหน
-                # ปกติถ้า Tag แปะผนัง Z ชี้ออก, มือเรา Z ชี้ออก -> ต้องหมุน 180
-                # Quaternion (x=1, y=0, z=0, w=0) คือหมุน 180 รอบแกน X
+                # Orientation: Rotate 180 around X to face the tag
                 target_pose_tag.pose.orientation.x = 1.0
                 target_pose_tag.pose.orientation.y = 0.0
                 target_pose_tag.pose.orientation.z = 0.0
                 target_pose_tag.pose.orientation.w = 0.0
                 
-                # แปลง Target Pose กลับมาเป็น Base Frame
+                # Transform to Base
                 target_pose_base = tf2_geometry_msgs.do_transform_pose(target_pose_tag.pose, t_base_tag)
                 
-                # สร้าง PoseStamped สำหรับ Base Frame
                 target_pose_base_stamped = PoseStamped()
                 target_pose_base_stamped.header.frame_id = self.base_frame
                 target_pose_base_stamped.header.stamp = self.get_clock().now().to_msg()
                 target_pose_base_stamped.pose = target_pose_base
+                
+                # Publish for Debug
+                self.target_pub.publish(target_pose_base_stamped)
 
             except Exception as e:
                 self.get_logger().error(f"Transform Error: {e}")
                 time.sleep(0.5)
                 continue
 
-            # 3. Calculate Error (Distance from Current TCP to Target)
+            # 3. Calculate Error
             try:
                 t_base_tcp = self.tf_buffer.lookup_transform(self.base_frame, self.ee_link, rclpy.time.Time())
                 curr_x = t_base_tcp.transform.translation.x
@@ -165,8 +164,14 @@ class VisualServoActionServer(Node):
             except Exception:
                 pass
 
-            # 4. Move to Target (Cartesian Path)
-            success = await self.move_to_pose(target_pose_base_stamped, goal_handle)
+            # 4. Move to Target (Hybrid Logic)
+            success = False
+            if dist_error > 0.10: # If error > 10cm, use PTP (MoveGroup)
+                self.get_logger().info("   🚀 Large Error: Using MoveGroup (PTP)")
+                success = await self.move_to_pose_ptp(target_pose_base_stamped, goal_handle)
+            else: # If error is small, use Cartesian
+                self.get_logger().info("   👌 Small Error: Using Cartesian Path")
+                success = await self.move_to_pose_cartesian(target_pose_base_stamped, goal_handle)
             
             if not success:
                 self.get_logger().warn("⚠️ Movement failed, retrying...")
@@ -179,10 +184,56 @@ class VisualServoActionServer(Node):
         goal_handle.abort()
         return result
 
-    async def move_to_pose(self, pose_stamped, goal_handle_server):
-        """
-        เคลื่อนที่ไปหา Pose เป้าหมายด้วย Cartesian Path
-        """
+    async def move_to_pose_ptp(self, pose_stamped, goal_handle_server):
+        """ Point-to-Point Movement using MoveGroup (Robust for large moves) """
+        if not self._move_group_client.wait_for_server(timeout_sec=2.0):
+            return False
+
+        goal_msg = MoveGroup.Goal()
+        goal_msg.request.group_name = self.arm_group_name
+        goal_msg.request.num_planning_attempts = 10
+        goal_msg.request.allowed_planning_time = 5.0
+        goal_msg.request.planner_id = "RRTConnectkConfigDefault"
+        
+        # Constraints
+        pcm = PositionConstraint()
+        pcm.header.frame_id = self.base_frame
+        pcm.link_name = self.ee_link
+        pcm.constraint_region.primitive_poses.append(pose_stamped.pose)
+        from shape_msgs.msg import SolidPrimitive
+        pcm.constraint_region.primitives.append(SolidPrimitive(type=SolidPrimitive.BOX, dimensions=[0.01, 0.01, 0.01]))
+        pcm.weight = 1.0
+        
+        ocm = OrientationConstraint()
+        ocm.header.frame_id = self.base_frame
+        ocm.link_name = self.ee_link
+        ocm.orientation = pose_stamped.pose.orientation
+        ocm.absolute_x_axis_tolerance = 0.1
+        ocm.absolute_y_axis_tolerance = 0.1
+        ocm.absolute_z_axis_tolerance = 0.1
+        ocm.weight = 1.0
+        
+        goal_msg.request.goal_constraints.append(Constraints(position_constraints=[pcm], orientation_constraints=[ocm]))
+        
+        future = self._move_group_client.send_goal_async(goal_msg)
+        while not future.done():
+            if goal_handle_server.is_cancel_requested: return False
+            time.sleep(0.1)
+            
+        goal_handle_moveit = future.result()
+        if not goal_handle_moveit.accepted: return False
+        
+        res_future = goal_handle_moveit.get_result_async()
+        while not res_future.done():
+            if goal_handle_server.is_cancel_requested:
+                goal_handle_moveit.cancel_goal_async()
+                return False
+            time.sleep(0.1)
+            
+        return res_future.result().result.error_code.val == 1
+
+    async def move_to_pose_cartesian(self, pose_stamped, goal_handle_server):
+        """ Cartesian Linear Movement (Precise for small moves) """
         req = GetCartesianPath.Request()
         req.header.frame_id = self.base_frame
         req.header.stamp = self.get_clock().now().to_msg()
@@ -201,7 +252,7 @@ class VisualServoActionServer(Node):
         
         response = future_path.result()
 
-        if response.error_code.val != 1 or response.fraction < 0.5: # ยอมรับ Fraction ต่ำหน่อยเผื่อติด Singularity
+        if response.error_code.val != 1 or response.fraction < 0.5:
             self.get_logger().warn(f"Path planning incomplete! Fraction: {response.fraction:.2f}")
             return False
 

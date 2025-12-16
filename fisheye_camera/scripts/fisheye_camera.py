@@ -86,6 +86,8 @@ class FisheyeCameraNode(Node):
             self.get_logger().warn("Failed to read frame")
             return
         
+        self.get_logger().info(f"Frame read: {frame.shape}") # Debug
+        
         # Rotation
         if self.rotation == 90:
             frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
@@ -111,6 +113,7 @@ class FisheyeCameraNode(Node):
         msg.data = frame.tobytes()
         
         self.image_pub.publish(msg)
+        self.get_logger().info("Published Image") # Debug
         
         # Camera Info Msg
         self.camera_info.header.stamp = stamp
