@@ -23,8 +23,8 @@ class ShelfCalculator:
         
         # Configuration
         self.ref_tag = "tag11" # Top Center Tag
-        self.row_spacing = 0.15  # 15cm spacing
-        self.col_spacing = 0.15  # 15cm spacing
+        self.row_spacing = 0.23  # 23cm spacing
+        self.col_spacing = 0.23  # 23cm spacing
         self.standoff_dist = 0.314 # Measured Z
         
         # Calibrated Base Offsets for Row 2, Col 2 (Middle Center)

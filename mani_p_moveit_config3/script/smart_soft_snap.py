@@ -21,7 +21,7 @@ class ShelfMeshSpawner(Node):
         # ==========================================
         
         self.pkg_name = 'mani_p_description' 
-        self.stl_filename = 'work_shelf2.STL'
+        self.stl_filename = 'work_shelf.STL'
         self.tag_frame = "tag11"
         self.base_frame = "Base_link"
         
