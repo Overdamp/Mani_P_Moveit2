@@ -83,4 +83,17 @@ def generate_launch_description():
                 )
             ]
         ),
+
+        # 5. Tag Leveler (Start with AprilTag)
+        TimerAction(
+            period=6.0, # Start shortly after AprilTag
+            actions=[
+                Node(
+                    package='mani_p_moveit_config3',
+                    executable='tag_leveler.py',
+                    name='tag_leveler',
+                    output='screen'
+                )
+            ]
+        ),
     ])

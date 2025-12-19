@@ -16,6 +16,7 @@ install(PROGRAMS
   script/coarse2fine_task.py
   script/adjust_level.py
   script/fisheye_camera.py
+  script/adjust_tcp.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

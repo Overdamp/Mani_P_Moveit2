@@ -33,7 +33,7 @@
       <joint name="$(arg camera_name)_joint" type="fixed">
         <parent link="Base_link"/>
         <child link="$(arg camera_name)_camera_link"/>
-        <origin xyz="-0.105 0 0.78" rpy="0 0 0"/>
+        <origin xyz="-0.105 0 0.73" rpy="0 0 0"/>
       </joint>
     </xacro:unless>
 
