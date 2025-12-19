@@ -76,5 +76,19 @@ def generate_launch_description():
                 PathJoinSubstitution([FindPackageShare('mani_p_moveit_config3'), 'config', 'apriltag_tags_fisheye.yaml']),
                 {'image_transport': 'raw'} # Override to use raw image from image_proc
             ]
+        ),
+
+        # 4. Tag Leveler (Force Z-axis parallel to floor)
+        # Added to fix tilted AprilTag frames
+        TimerAction(
+            period=5.0,
+            actions=[
+                Node(
+                    package='mani_p_moveit_config3',
+                    executable='tag_leveler.py',
+                    name='tag_leveler',
+                    output='screen'
+                )
+            ]
         )
     ])
