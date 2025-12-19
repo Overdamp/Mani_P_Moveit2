@@ -27,6 +27,7 @@ endif()
 # Install Python Script
 install(PROGRAMS
   scripts/fisheye_camera.py
+  scripts/fisheye_tag_leveler.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
