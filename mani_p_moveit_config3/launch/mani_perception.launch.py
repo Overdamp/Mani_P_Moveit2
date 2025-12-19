@@ -84,15 +84,21 @@ def generate_launch_description():
             ]
         ),
 
-        # 5. Tag Leveler (Start with AprilTag)
+        # 5. fisheye_camera (Wait 5s for Detections)
         TimerAction(
-            period=6.0, # Start shortly after AprilTag
+            period=5.0,
             actions=[
-                Node(
-                    package='mani_p_moveit_config3',
-                    executable='tag_leveler.py',
-                    name='tag_leveler',
-                    output='screen'
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        PathJoinSubstitution([
+                            FindPackageShare('fisheye_camera'),
+                            'launch',
+                            'camera_system.launch.py'
+                        ])
+                    ),
+                    launch_arguments={
+                        'device_id': '3'
+                    }.items()
                 )
             ]
         ),

@@ -33,7 +33,7 @@ class TCPAdjuster(Node):
         return Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
 
     def move_to_tag(self, tag_id, offset):
-        tag_frame = f"tag{tag_id}_fisheye"
+        tag_frame = f"tag{tag_id}_level"
         
         self.get_logger().info(f"🔍 Looking for {tag_frame}...")
         
@@ -322,7 +322,7 @@ class TCPAdjuster(Node):
 def main():
     rclpy.init()
     
-    parser = argparse.ArgumentParser(description="Move TCP to Fisheye Tag")
+    parser = argparse.ArgumentParser(description="Move TCP to tag_level")
     parser.add_argument("tag_id", type=int, help="Tag ID (1, 2, 3)")
     parser.add_argument("--offset", type=float, default=0.1, help="Distance from tag (meters). Default 0.1")
     
