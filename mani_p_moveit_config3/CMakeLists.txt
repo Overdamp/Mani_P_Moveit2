@@ -17,6 +17,7 @@ install(PROGRAMS
   script/adjust_level.py
   script/fisheye_camera.py
   script/adjust_tcp.py
+  script/tag_leveler.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
