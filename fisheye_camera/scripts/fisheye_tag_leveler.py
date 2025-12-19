@@ -14,18 +14,18 @@ import math
 import tf_transformations
 # นำเข้าไลบรารีสำหรับการแปลงค่าทางคณิตศาสตร์ของ TF (เช่น Quaternion <-> Euler)
 
-class TagLeveler(Node):
-    # สร้างคลาส TagLeveler โดยสืบทอดมาจาก Node
+class FisheyeTagLeveler(Node):
+    # สร้างคลาส FisheyeTagLeveler โดยสืบทอดมาจาก Node
 
     def __init__(self):
         # ฟังก์ชันเริ่มต้น (Constructor) ของคลาส
-        super().__init__('tag_leveler')
-        # เรียกใช้ Constructor ของคลาสแม่ (Node) และตั้งชื่อ Node ว่า 'tag_leveler'
+        super().__init__('fisheye_tag_leveler')
+        # เรียกใช้ Constructor ของคลาสแม่ (Node) และตั้งชื่อ Node ว่า 'fisheye_tag_leveler'
 
         # ==========================================
         # 🛠️ ตั้งค่า (CONFIG) 🛠️
         # ==========================================
-        self.target_tags = ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6"]
+        self.target_tags = ["tag1_fisheye", "tag2_fisheye", "tag3_fisheye", "tag4_fisheye", "tag5_fisheye", "tag6_fisheye"]
         # รายชื่อ Tag ที่ต้องการปรับระนาบ (เพิ่มลดได้ตามต้องการ)
         self.base_frame = "Base_link"
         # เฟรมอ้างอิงหลัก (World Frame)
@@ -45,7 +45,7 @@ class TagLeveler(Node):
         self.timer = self.create_timer(self.timer_period, self.update_transforms)
         # สร้าง Timer เพื่อเรียกฟังก์ชัน update_transforms ตามเวลาที่กำหนด
         
-        self.get_logger().info(f'Tag Leveler Started. Publishing *{self.suffix} frames.')
+        self.get_logger().info(f'Fisheye Tag Leveler Started. Publishing *{self.suffix} frames.')
         # แสดงข้อความแจ้งเตือนว่า Node เริ่มทำงานแล้ว
 
     def get_euler_from_quaternion(self, q):
@@ -113,7 +113,7 @@ class TagLeveler(Node):
 def main(args=None):
     # ฟังก์ชันหลัก
     rclpy.init(args=args)
-    node = TagLeveler()
+    node = FisheyeTagLeveler()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
