@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionServer, ActionClient
-from rclpy.callback_groups import ReentrantCallbackGroup
-from geometry_msgs.msg import Pose
-from moveit_msgs.srv import GetCartesianPath
-from moveit_msgs.action import ExecuteTrajectory
-from tf2_ros import Buffer, TransformListener
-import math
-import time
+import rclpy  # นำเข้าไลบรารี rclpy
+from rclpy.node import Node  # นำเข้าคลาส Node
+from rclpy.action import ActionServer, ActionClient  # นำเข้า ActionServer และ ActionClient
+from rclpy.callback_groups import ReentrantCallbackGroup  # นำเข้า Callback Group แบบ Reentrant
+from geometry_msgs.msg import Pose  # นำเข้า message types
+from moveit_msgs.srv import GetCartesianPath  # นำเข้า service definition
+from moveit_msgs.action import ExecuteTrajectory  # นำเข้า action definition
+from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
+import math  # นำเข้า math
+import time  # นำเข้า time
 
-# Custom Action Interface
-# Custom Action Interface
+# Custom Action Interface (นำเข้า Action Interface ที่สร้างเอง)
 from mani_p_actions.action import MoveLinear
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import JointState  # นำเข้า message types สำหรับ Joint State
 
 class MoveLinearActionServer(Node):
 
     def __init__(self):
-        super().__init__('move_linear_action_server')
+        super().__init__('move_linear_action_server')  # สร้าง Node ชื่อ 'move_linear_action_server'
         
-        self.arm_group_name = "arm"
-        self.ee_link = "tcp_link"
-        self.base_frame = "Base_link"
+        self.arm_group_name = "arm"      # ชื่อกลุ่มแขนกล
+        self.ee_link = "tcp_link"        # ชื่อ link ปลายมือจับ
+        self.base_frame = "Base_link"    # ชื่อ frame อ้างอิง
         
-        self.cb_group = ReentrantCallbackGroup()
+        self.cb_group = ReentrantCallbackGroup()  # สร้าง Callback Group เพื่อให้ทำงานขนานกันได้
 
+        # สร้าง Action Server สำหรับ MoveLinear
         self._action_server = ActionServer(
             self,
             MoveLinear,
@@ -34,23 +34,27 @@ class MoveLinearActionServer(Node):
             callback_group=self.cb_group
         )
 
+        # สร้าง Action Client สำหรับ ExecuteTrajectory และ Service Client สำหรับ GetCartesianPath
         self._execute_client = ActionClient(self, ExecuteTrajectory, 'execute_trajectory', callback_group=self.cb_group)
         self._cartesian_client = self.create_client(GetCartesianPath, 'compute_cartesian_path', callback_group=self.cb_group)
         
+        # TF Buffer
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.get_logger().info('✅ Move Linear Action Server Ready.')
         
-        # Joint State Subscription
+        # Joint State Subscription (รับค่า Joint State)
         self.current_joints = {}
         self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
 
     def joint_callback(self, msg):
+        # Callback สำหรับเก็บค่า Joint ปัจจุบัน
         for i, name in enumerate(msg.name):
             self.current_joints[name] = msg.position[i]
 
     def log_status(self):
+        # ฟังก์ชันสำหรับ Log สถานะ TCP และ Joint
         try:
             if self.tf_buffer.can_transform(self.base_frame, self.ee_link, rclpy.time.Time()):
                 t = self.tf_buffer.lookup_transform(self.base_frame, self.ee_link, rclpy.time.Time())
@@ -64,10 +68,13 @@ class MoveLinearActionServer(Node):
             pass
 
     async def execute_callback(self, goal_handle):
-        distance = goal_handle.request.distance
-        self.get_logger().info(f"📏 Moving Linear: {distance}m")
+        # Callback หลักเมื่อได้รับ Goal
+        direction = goal_handle.request.direction.lower() # รับค่าทิศทาง (แปลงเป็นตัวพิมพ์เล็ก)
+        distance = goal_handle.request.distance # รับค่าระยะทาง
         
-        # 1. Get Current Pose
+        self.get_logger().info(f"📏 Moving '{direction}' by {distance}m")
+        
+        # 1. Get Current Pose (ดึงตำแหน่งปัจจุบัน)
         try:
             t = self.tf_buffer.lookup_transform(
                 self.base_frame, self.ee_link, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=2.0))
@@ -76,43 +83,86 @@ class MoveLinearActionServer(Node):
             goal_handle.abort()
             return MoveLinear.Result(success=False)
 
-        # 2. Calculate Target Pose (Relative to TCP Z)
-        # We need to rotate the movement vector (0, 0, distance) from TCP frame to Base frame
+        # 2. Calculate Target Pose (คำนวณตำแหน่งเป้าหมาย)
+        # เตรียมตัวแปรสำหรับ Delta (ส่วนต่างตำแหน่ง)
+        dx, dy, dz = 0.0, 0.0, 0.0
         
-        qx = t.transform.rotation.x
-        qy = t.transform.rotation.y
-        qz = t.transform.rotation.z
-        qw = t.transform.rotation.w
-        
-        # Vector in TCP frame: (0, 0, distance)
-        vx, vy, vz = 0.0, 0.0, distance
-        
-        # Rotate vector by quaternion
-        # x_new = (2xz + 2yw) * v_z
-        # y_new = (2yz - 2xw) * v_z
-        # z_new = (1 - 2xx - 2yy) * v_z
-        # Since vx=vy=0, we simplify:
-        
-        dx = (2*qx*qz + 2*qy*qw) * vz
-        dy = (2*qy*qz - 2*qx*qw) * vz
-        dz = (1 - 2*qx*qx - 2*qy*qy) * vz
-        
+        # Logic การคำนวณทิศทาง
+        if direction == "forward":
+            # Forward: เคลื่อนที่ไปข้างหน้าตามแนวแกน Z ของ TCP (มือจับ)
+            # ต้องหมุน Vector (0,0,distance) จาก TCP frame ไปยัง Base frame
+            qx = t.transform.rotation.x
+            qy = t.transform.rotation.y
+            qz = t.transform.rotation.z
+            qw = t.transform.rotation.w
+            
+            # สูตรหมุน Vector (0,0,1) ด้วย Quaternion
+            # dx = (2xz + 2yw) * dist
+            # dy = (2yz - 2xw) * dist
+            # dz = (1 - 2xx - 2yy) * dist
+            dx = (2*qx*qz + 2*qy*qw) * distance
+            dy = (2*qy*qz - 2*qx*qw) * distance
+            dz = (1 - 2*qx*qx - 2*qy*qy) * distance
+            
+        elif direction == "backward":
+            # Backward: เคลื่อนที่ถอยหลังตามแนวแกน Z ของ TCP (ตรงข้าม Forward)
+            qx = t.transform.rotation.x
+            qy = t.transform.rotation.y
+            qz = t.transform.rotation.z
+            qw = t.transform.rotation.w
+            
+            # เหมือน Forward แต่คูณ -distance
+            dist_neg = -distance
+            dx = (2*qx*qz + 2*qy*qw) * dist_neg
+            dy = (2*qy*qz - 2*qx*qw) * dist_neg
+            dz = (1 - 2*qx*qx - 2*qy*qy) * dist_neg
+            
+        elif direction == "up":
+            # Up: เคลื่อนที่ขึ้นตามแนวแกน Z ของ Base (World Z)
+            dx = 0.0
+            dy = 0.0
+            dz = distance
+            
+        elif direction == "down":
+            # Down: เคลื่อนที่ลงตามแนวแกน Z ของ Base (World Z)
+            dx = 0.0
+            dy = 0.0
+            dz = -distance
+            
+        elif direction == "left":
+            # Left: เคลื่อนที่ซ้ายตามแนวแกน Y ของ Base (World Y)
+            dx = 0.0
+            dy = distance
+            dz = 0.0
+            
+        elif direction == "right":
+            # Right: เคลื่อนที่ขวาตามแนวแกน Y ของ Base (World Y)
+            dx = 0.0
+            dy = -distance
+            dz = 0.0
+            
+        else:
+            self.get_logger().error(f"❌ Unknown direction: {direction}")
+            goal_handle.abort()
+            return MoveLinear.Result(success=False)
+
+        # สร้าง Target Pose
         target_pose = Pose()
         target_pose.position.x = t.transform.translation.x + dx
         target_pose.position.y = t.transform.translation.y + dy
         target_pose.position.z = t.transform.translation.z + dz
-        target_pose.orientation = t.transform.rotation # Keep same orientation
+        target_pose.orientation = t.transform.rotation # รักษา Orientation เดิม
         
-        # 3. Compute Cartesian Path
+        # 3. Compute Cartesian Path (วางแผนเส้นทางแบบ Cartesian)
         req = GetCartesianPath.Request()
         req.header.frame_id = self.base_frame
         req.header.stamp = self.get_clock().now().to_msg()
         req.group_name = self.arm_group_name
         req.link_name = self.ee_link
         req.waypoints = [target_pose]
-        req.max_step = 0.01
-        req.jump_threshold = 0.0
-        req.avoid_collisions = True
+        req.max_step = 0.01  # ความละเอียดของ Step (1cm)
+        req.jump_threshold = 0.0 # ป้องกันการกระโดดของ Joint
+        req.avoid_collisions = True # หลบสิ่งกีดขวาง
         
         future = self._cartesian_client.call_async(req)
         while not future.done():
@@ -127,7 +177,7 @@ class MoveLinearActionServer(Node):
             goal_handle.abort()
             return MoveLinear.Result(success=False)
 
-        # 4. Execute
+        # 4. Execute (สั่งเคลื่อนที่)
         goal_msg = ExecuteTrajectory.Goal()
         goal_msg.trajectory = response.solution
         

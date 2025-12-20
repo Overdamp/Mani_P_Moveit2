@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionServer, ActionClient
-from rclpy.callback_groups import ReentrantCallbackGroup
-from geometry_msgs.msg import Pose
-from moveit_msgs.srv import GetCartesianPath
-from moveit_msgs.action import ExecuteTrajectory
-from tf2_ros import Buffer, TransformListener
-import math
-import time
+import rclpy  # นำเข้าไลบรารี rclpy
+from rclpy.node import Node  # นำเข้าคลาส Node
+from rclpy.action import ActionServer, ActionClient  # นำเข้า ActionServer และ ActionClient
+from rclpy.callback_groups import ReentrantCallbackGroup  # นำเข้า Callback Group แบบ Reentrant
+from geometry_msgs.msg import Pose  # นำเข้า message types
+from moveit_msgs.srv import GetCartesianPath  # นำเข้า service definition
+from moveit_msgs.action import ExecuteTrajectory  # นำเข้า action definition
+from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
+import math  # นำเข้า math
+import time  # นำเข้า time
 
-# Custom Action Interface
-# Custom Action Interface
+# Custom Action Interface (นำเข้า Action Interface ที่สร้างเอง)
 from mani_p_actions.action import AdjustLevel
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import JointState  # นำเข้า message types สำหรับ Joint State
 
 class AdjustLevelActionServer(Node):
 
     def __init__(self):
-        super().__init__('adjust_level_action_server')
+        super().__init__('adjust_level_action_server')  # สร้าง Node ชื่อ 'adjust_level_action_server'
         
-        self.arm_group_name = "arm"
-        self.ee_link = "tcp_link"
-        self.base_frame = "Base_link"
+        self.arm_group_name = "arm"      # ชื่อกลุ่มแขนกล
+        self.ee_link = "tcp_link"        # ชื่อ link ปลายมือจับ
+        self.base_frame = "Base_link"    # ชื่อ frame อ้างอิง
         
-        self.cb_group = ReentrantCallbackGroup()
+        self.cb_group = ReentrantCallbackGroup()  # สร้าง Callback Group เพื่อให้ทำงานขนานกันได้
 
+        # สร้าง Action Server สำหรับ AdjustLevel
         self._action_server = ActionServer(
             self,
             AdjustLevel,
@@ -34,23 +34,27 @@ class AdjustLevelActionServer(Node):
             callback_group=self.cb_group
         )
 
+        # สร้าง Action Client สำหรับ ExecuteTrajectory และ Service Client สำหรับ GetCartesianPath
         self._execute_client = ActionClient(self, ExecuteTrajectory, 'execute_trajectory', callback_group=self.cb_group)
         self._cartesian_client = self.create_client(GetCartesianPath, 'compute_cartesian_path', callback_group=self.cb_group)
         
+        # TF Buffer
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.get_logger().info('✅ Adjust Level Action Server Ready.')
         
-        # Joint State Subscription
+        # Joint State Subscription (รับค่า Joint State)
         self.current_joints = {}
         self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
 
     def joint_callback(self, msg):
+        # Callback สำหรับเก็บค่า Joint ปัจจุบัน
         for i, name in enumerate(msg.name):
             self.current_joints[name] = msg.position[i]
 
     def log_status(self):
+        # ฟังก์ชันสำหรับ Log สถานะ TCP และ Joint
         try:
             if self.tf_buffer.can_transform(self.base_frame, self.ee_link, rclpy.time.Time()):
                 t = self.tf_buffer.lookup_transform(self.base_frame, self.ee_link, rclpy.time.Time())
@@ -64,9 +68,10 @@ class AdjustLevelActionServer(Node):
             pass
 
     async def execute_callback(self, goal_handle):
+        # Callback หลักเมื่อได้รับ Goal
         self.get_logger().info("🔄 Adjusting Level (Align with ZED)...")
         
-        # 1. Get Current Pose
+        # 1. Get Current Pose (ดึงตำแหน่งปัจจุบัน)
         try:
             t = self.tf_buffer.lookup_transform(
                 self.base_frame, self.ee_link, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=2.0))
@@ -79,7 +84,7 @@ class AdjustLevelActionServer(Node):
         current_y = t.transform.translation.y
         current_z = t.transform.translation.z
         
-        # 2. Get Target Orientation (ZED Camera)
+        # 2. Get Target Orientation (ZED Camera) (ดึงค่าการหมุนเป้าหมายจากกล้อง ZED)
         target_frame = "zed_left_camera_optical_frame"
         try:
             t_zed = self.tf_buffer.lookup_transform(
@@ -96,7 +101,7 @@ class AdjustLevelActionServer(Node):
             t_zed.transform.rotation.w
         ]
 
-        # 3. Cartesian Path
+        # 3. Cartesian Path (วางแผนเส้นทางแบบ Cartesian)
         target_pose = Pose()
         target_pose.position.x = current_x
         target_pose.position.y = current_y
@@ -129,7 +134,7 @@ class AdjustLevelActionServer(Node):
             goal_handle.abort()
             return AdjustLevel.Result(success=False)
 
-        # Execute
+        # Execute (สั่งเคลื่อนที่)
         goal_msg = ExecuteTrajectory.Goal()
         goal_msg.trajectory = response.solution
         

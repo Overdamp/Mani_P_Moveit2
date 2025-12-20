@@ -1,35 +1,35 @@
 #!/usr/bin/env python3
-import rclpy
-import math
-import time
-from rclpy.node import Node
-from rclpy.action import ActionServer, ActionClient
-from rclpy.callback_groups import ReentrantCallbackGroup
-from rclpy.executors import MultiThreadedExecutor
-from rclpy.duration import Duration
+import rclpy  # นำเข้าไลบรารี rclpy
+import math  # นำเข้า math
+import time  # นำเข้า time
+from rclpy.node import Node  # นำเข้าคลาส Node
+from rclpy.action import ActionServer, ActionClient  # นำเข้า ActionServer และ ActionClient
+from rclpy.callback_groups import ReentrantCallbackGroup  # นำเข้า Callback Group แบบ Reentrant
+from rclpy.executors import MultiThreadedExecutor  # นำเข้า MultiThreadedExecutor
+from rclpy.duration import Duration  # นำเข้า Duration
 
-# TF2 & Geometry
-from tf2_ros import Buffer, TransformListener
+# TF2 & Geometry (TF2 และ Geometry)
+from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
 import tf2_geometry_msgs # สำคัญ! ต้องมี module นี้เพื่อแปลง Pose
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped, Pose  # นำเข้า message types
 
-# Interfaces
-from mani_p_actions.action import VisualServo
-from moveit_msgs.srv import GetCartesianPath
+# Interfaces (Interfaces ที่ใช้)
+from mani_p_actions.action import VisualServo  # นำเข้า Action Interface ที่สร้างเอง
+from moveit_msgs.srv import GetCartesianPath  # นำเข้า service definition
 # MoveIt
-from moveit_msgs.action import MoveGroup, ExecuteTrajectory
-from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint
-from moveit_msgs.srv import GetCartesianPath
-from rclpy.action import ActionClient
-from sensor_msgs.msg import JointState
+from moveit_msgs.action import MoveGroup, ExecuteTrajectory  # นำเข้า action definition
+from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint  # นำเข้า message types สำหรับข้อจำกัด
+from moveit_msgs.srv import GetCartesianPath  # นำเข้า service definition
+from rclpy.action import ActionClient  # นำเข้า ActionClient
+from sensor_msgs.msg import JointState  # นำเข้า message types สำหรับ Joint State
 
 class VisualServoActionServer(Node):
 
     def __init__(self):
-        super().__init__('visual_servo_action_server')
+        super().__init__('visual_servo_action_server')  # สร้าง Node ชื่อ 'visual_servo_action_server'
         
-        # --- Configuration ---
-        self.arm_group_name = "arm"
+        # --- Configuration (การตั้งค่า) ---
+        self.arm_group_name = "arm"      # ชื่อกลุ่มแขนกล
         self.ee_link = "tcp_link"       # ลิงค์ปลายมือ (End Effector)
         self.base_frame = "Base_link"   # ลิงค์ฐานหุ่นยนต์
         
@@ -45,16 +45,16 @@ class VisualServoActionServer(Node):
             callback_group=self.cb_group
         )
 
-        # 2. Clients เพื่อคุยกับ MoveIt
+        # 2. Clients เพื่อคุยกับ MoveIt (สร้าง Client สำหรับ MoveIt)
         self._execute_client = ActionClient(self, ExecuteTrajectory, 'execute_trajectory', callback_group=self.cb_group)
         self._move_group_client = ActionClient(self, MoveGroup, 'move_action', callback_group=self.cb_group) # PTP Client
         self._cartesian_client = self.create_client(GetCartesianPath, 'compute_cartesian_path', callback_group=self.cb_group)
         
-        # 3. TF Listener Setup
+        # 3. TF Listener Setup (ตั้งค่า TF Listener)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        # 4. Debugging Tools
+        # 4. Debugging Tools (เครื่องมือ Debug)
         self.current_joints = {}
         self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
         self.target_pub = self.create_publisher(PoseStamped, 'visual_servo_target', 10) # Debug Publisher
@@ -62,6 +62,7 @@ class VisualServoActionServer(Node):
         self.get_logger().info('✅ Visual Servo Action Server (Hybrid PTP/Cartesian) Ready.')
 
     def joint_callback(self, msg):
+        # Callback สำหรับเก็บค่า Joint ปัจจุบัน
         for i, name in enumerate(msg.name):
             self.current_joints[name] = msg.position[i]
 
@@ -78,7 +79,8 @@ class VisualServoActionServer(Node):
             pass
 
     async def execute_callback(self, goal_handle):
-        tag_frame = goal_handle.request.tag_name + "_fisheye" # Use Fisheye specific frame
+        # Callback หลักเมื่อได้รับ Goal
+        tag_frame = goal_handle.request.tag_name + "_fisheye" # Use Fisheye specific frame (ใช้ Frame ของ Fisheye)
         tolerance = goal_handle.request.tolerance
         target_standoff = 0.25 # เมตร (ระยะห่างที่ต้องการ)
         
@@ -90,16 +92,16 @@ class VisualServoActionServer(Node):
         dist_error = 0.0 
         
         for attempt in range(max_retries):
-            # 0. Check Cancellation
+            # 0. Check Cancellation (ตรวจสอบการยกเลิก)
             if goal_handle.is_cancel_requested:
                 goal_handle.canceled()
                 self.get_logger().info("🛑 Goal Canceled")
                 return VisualServo.Result(success=False, final_error=0.0)
 
-            # 1. Get Tag Pose in Base Frame
+            # 1. Get Tag Pose in Base Frame (หาตำแหน่ง Tag ใน Base Frame)
             try:
                 target_frame = tag_frame
-                # Fallback: Check for 'tag36h11:ID' format if specific frame not found
+                # Fallback: Check for 'tag36h11:ID' format if specific frame not found (ถ้าไม่เจอ Frame ให้ลองหาแบบ ID)
                 if not self.tf_buffer.can_transform(self.base_frame, target_frame, rclpy.time.Time()):
                      # Extract ID from 'tagX' or 'tagX_fisheye'
                     import re
@@ -118,19 +120,19 @@ class VisualServoActionServer(Node):
                     
                 t_base_tag = self.tf_buffer.lookup_transform(self.base_frame, target_frame, rclpy.time.Time())
                 
-                # 2. Calculate Target Pose (Tag + Standoff)
+                # 2. Calculate Target Pose (Tag + Standoff) (คำนวณตำแหน่งเป้าหมาย)
                 target_pose_tag = PoseStamped()
                 target_pose_tag.header.frame_id = tag_frame
                 target_pose_tag.header.stamp = t_base_tag.header.stamp
                 target_pose_tag.pose.position.z = target_standoff 
                 
-                # Orientation: Rotate 180 around X to face the tag
+                # Orientation: Rotate 180 around X to face the tag (หมุน 180 องศารอบแกน X เพื่อหันหน้าเข้าหา Tag)
                 target_pose_tag.pose.orientation.x = 1.0
                 target_pose_tag.pose.orientation.y = 0.0
                 target_pose_tag.pose.orientation.z = 0.0
                 target_pose_tag.pose.orientation.w = 0.0
                 
-                # Transform to Base
+                # Transform to Base (แปลงเป็น Base Frame)
                 target_pose_base = tf2_geometry_msgs.do_transform_pose(target_pose_tag.pose, t_base_tag)
                 
                 target_pose_base_stamped = PoseStamped()
@@ -138,7 +140,7 @@ class VisualServoActionServer(Node):
                 target_pose_base_stamped.header.stamp = self.get_clock().now().to_msg()
                 target_pose_base_stamped.pose = target_pose_base
                 
-                # Publish for Debug
+                # Publish for Debug (Publish เพื่อ Debug)
                 self.target_pub.publish(target_pose_base_stamped)
 
             except Exception as e:
@@ -146,7 +148,7 @@ class VisualServoActionServer(Node):
                 time.sleep(0.5)
                 continue
 
-            # 3. Calculate Error
+            # 3. Calculate Error (คำนวณความคลาดเคลื่อน)
             try:
                 t_base_tcp = self.tf_buffer.lookup_transform(self.base_frame, self.ee_link, rclpy.time.Time())
                 curr_x = t_base_tcp.transform.translation.x
@@ -159,14 +161,14 @@ class VisualServoActionServer(Node):
                 
                 dist_error = math.sqrt((tgt_x-curr_x)**2 + (tgt_y-curr_y)**2 + (tgt_z-curr_z)**2)
                 
-                # Feedback
+                # Feedback (ส่ง Feedback กลับ)
                 feedback = VisualServo.Feedback()
                 feedback.current_error = dist_error
                 goal_handle.publish_feedback(feedback)
                 
                 self.get_logger().info(f"   Loop {attempt+1}: Error = {dist_error:.4f} m")
                 
-                # Check Success
+                # Check Success (ตรวจสอบความสำเร็จ)
                 if dist_error < tolerance:
                     self.get_logger().info("✅ Target Aligned!")
                     result.success = True
@@ -177,12 +179,12 @@ class VisualServoActionServer(Node):
             except Exception:
                 pass
 
-            # 4. Move to Target (Hybrid Logic)
+            # 4. Move to Target (Hybrid Logic) (เคลื่อนที่ไปยังเป้าหมาย - ตรรกะแบบผสม)
             success = False
-            if dist_error > 0.10: # If error > 10cm, use PTP (MoveGroup)
+            if dist_error > 0.10: # If error > 10cm, use PTP (MoveGroup) (ถ้า Error > 10cm ใช้ PTP)
                 self.get_logger().info("   🚀 Large Error: Using MoveGroup (PTP)")
                 success = await self.move_to_pose_ptp(target_pose_base_stamped, goal_handle)
-            else: # If error is small, use Cartesian
+            else: # If error is small, use Cartesian (ถ้า Error น้อย ใช้ Cartesian)
                 self.get_logger().info("   👌 Small Error: Using Cartesian Path")
                 success = await self.move_to_pose_cartesian(target_pose_base_stamped, goal_handle)
             
@@ -198,7 +200,7 @@ class VisualServoActionServer(Node):
         return result
 
     async def move_to_pose_ptp(self, pose_stamped, goal_handle_server):
-        """ Point-to-Point Movement using MoveGroup (Robust for large moves) """
+        """ Point-to-Point Movement using MoveGroup (Robust for large moves) (การเคลื่อนที่แบบ Point-to-Point โดยใช้ MoveGroup) """
         if not self._move_group_client.wait_for_server(timeout_sec=2.0):
             return False
 
@@ -208,7 +210,7 @@ class VisualServoActionServer(Node):
         goal_msg.request.allowed_planning_time = 5.0
         goal_msg.request.planner_id = "RRTConnectkConfigDefault"
         
-        # Constraints
+        # Constraints (ข้อจำกัด)
         pcm = PositionConstraint()
         pcm.header.frame_id = self.base_frame
         pcm.link_name = self.ee_link
@@ -246,7 +248,7 @@ class VisualServoActionServer(Node):
         return res_future.result().result.error_code.val == 1
 
     async def move_to_pose_cartesian(self, pose_stamped, goal_handle_server):
-        """ Cartesian Linear Movement (Precise for small moves) """
+        """ Cartesian Linear Movement (Precise for small moves) (การเคลื่อนที่แบบ Cartesian Linear) """
         req = GetCartesianPath.Request()
         req.header.frame_id = self.base_frame
         req.header.stamp = self.get_clock().now().to_msg()
@@ -294,18 +296,18 @@ class VisualServoActionServer(Node):
         return future_result.result().result.error_code.val == 1
 
 def main(args=None):
-    rclpy.init(args=args)
+    rclpy.init(args=args)  # เริ่มต้น ROS 2
     node = VisualServoActionServer()
     executor = MultiThreadedExecutor()
     executor.add_node(node)
     
     try:
-        executor.spin()
+        executor.spin()  # หมุน loop
     except KeyboardInterrupt:
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        rclpy.shutdown()  # ปิด ROS 2
 
 if __name__ == '__main__':
     main()

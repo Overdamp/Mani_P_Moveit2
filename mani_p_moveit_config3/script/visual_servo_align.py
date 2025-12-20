@@ -1,35 +1,35 @@
 #!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionClient
-from geometry_msgs.msg import Pose
-from moveit_msgs.srv import GetCartesianPath
-from moveit_msgs.action import ExecuteTrajectory
-from tf2_ros import Buffer, TransformListener
-import sys
-import math
-import time
+import rclpy  # นำเข้าไลบรารี rclpy
+from rclpy.node import Node  # นำเข้าคลาส Node
+from rclpy.action import ActionClient  # นำเข้า ActionClient
+from geometry_msgs.msg import Pose  # นำเข้า message types
+from moveit_msgs.srv import GetCartesianPath  # นำเข้า service definition
+from moveit_msgs.action import ExecuteTrajectory  # นำเข้า action definition
+from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
+import sys  # นำเข้า sys
+import math  # นำเข้า math
+import time  # นำเข้า time
 
 class VisualServoAligner(Node):
 
     def __init__(self):
-        super().__init__('visual_servo_aligner')
+        super().__init__('visual_servo_aligner')  # สร้าง Node ชื่อ 'visual_servo_aligner'
         
-        # --- ⚙️ CONFIG ⚙️ ---
-        self.arm_group_name = "arm"      
-        self.ee_link = "tcp_link"        
-        self.base_frame = "Base_link"    
+        # --- ⚙️ CONFIG ⚙️ (การตั้งค่า) ---
+        self.arm_group_name = "arm"      # ชื่อกลุ่มแขนกล
+        self.ee_link = "tcp_link"        # ชื่อ link ปลายมือจับ
+        self.base_frame = "Base_link"    # ชื่อ frame อ้างอิง
         
-        # Tolerance (meters)
+        # Tolerance (meters) (ค่าความคลาดเคลื่อนที่ยอมรับได้)
         self.tolerance = 0.002 # 2mm
-        self.max_step = 0.02   # Max movement per step (2cm)
-        self.max_retries = 5   # Max attempts to align
+        self.max_step = 0.02   # ระยะขยับสูงสุดต่อครั้ง (2cm)
+        self.max_retries = 5   # จำนวนครั้งสูงสุดที่พยายามปรับ
         # --------------------
 
-        # Action Client for Trajectory Execution
+        # Action Client สำหรับสั่ง Execute Trajectory
         self._execute_client = ActionClient(self, ExecuteTrajectory, 'execute_trajectory')
         
-        # Service Client for Cartesian Path
+        # Service Client สำหรับคำนวณ Cartesian Path
         self._cartesian_client = self.create_client(GetCartesianPath, 'compute_cartesian_path')
         
         # TF Buffer
@@ -40,13 +40,14 @@ class VisualServoAligner(Node):
 
     def align_to_tag(self, tag_frame):
         """ Iteratively align tcp_link to tag_frame in X/Y axes """
+        # ฟังก์ชันปรับตำแหน่ง TCP ให้ตรงกับ Tag ในแนวแกน X/Y แบบวนลูป
         self.get_logger().info(f"🎯 Aligning to {tag_frame}...")
 
         for attempt in range(self.max_retries):
-            # 1. Get Error (Tag position in TCP frame)
+            # 1. หาค่า Error (ตำแหน่ง Tag ใน Frame ของ TCP)
             try:
                 # Look up Tag in TCP frame
-                # If Tag is at (0.01, -0.01, 0.2) in TCP frame, it means TCP needs to move (+0.01, -0.01) to align.
+                # ถ้า Tag อยู่ที่ (0.01, -0.01, 0.2) ใน TCP frame แปลว่า TCP ต้องขยับ (+0.01, -0.01) เพื่อให้ตรง
                 t = self.tf_buffer.lookup_transform(
                     self.ee_link,
                     tag_frame,
@@ -63,34 +64,35 @@ class VisualServoAligner(Node):
 
             self.get_logger().info(f"   Attempt {attempt+1}: Error X={dx:.4f}, Y={dy:.4f} (Dist={dist_error:.4f})")
 
-            # 2. Check Tolerance
+            # 2. ตรวจสอบว่า Error อยู่ในเกณฑ์ที่ยอมรับได้หรือไม่
             if dist_error < self.tolerance:
                 self.get_logger().info("✅ Aligned! Error is within tolerance.")
                 return
 
-            # 3. Limit Step Size (Safety)
+            # 3. จำกัดระยะการขยับ (เพื่อความปลอดภัย)
             step_x = dx
             step_y = dy
             
-            # Scale down if too large
+            # Scale down if too large (ถ้าระยะห่างมากเกินไป ให้ขยับแค่ max_step)
             if dist_error > self.max_step:
                 scale = self.max_step / dist_error
                 step_x *= scale
                 step_y *= scale
                 self.get_logger().info(f"   ⚠️ Error too large, scaling step to {self.max_step}m")
 
-            # 4. Move Relative to TCP (Cartesian)
+            # 4. สั่งเคลื่อนที่สัมพัทธ์กับ TCP (Cartesian Move)
             self.move_relative(step_x, step_y, 0.0)
             
-            # Wait a bit for robot to settle
+            # รอให้หุ่นยนต์นิ่งสักพัก
             time.sleep(1.0)
 
         self.get_logger().warn("❌ Max retries reached. Alignment might not be perfect.")
 
     def move_relative(self, x, y, z):
         """ Move tcp_link relative to itself """
+        # ฟังก์ชันสั่งเคลื่อนที่ TCP เทียบกับตัวมันเอง
         
-        # 1. Get Current Pose in Base Frame
+        # 1. ดึง Pose ปัจจุบันเทียบกับ Base Frame
         try:
             t_base = self.tf_buffer.lookup_transform(
                 self.base_frame,
@@ -102,9 +104,9 @@ class VisualServoAligner(Node):
             self.get_logger().error(f"❌ Could not get current pose: {e}")
             return
 
-        # 2. Calculate Target Pose
-        # We want to move by (x,y,z) in TCP frame.
-        # Need to rotate this vector into Base frame.
+        # 2. คำนวณ Pose เป้าหมาย
+        # เราต้องการขยับ (x,y,z) ใน TCP frame
+        # ต้องหมุน vector นี้ให้เป็น Base frame ก่อน
         
         # Quaternion (Base -> TCP)
         qx = t_base.transform.rotation.x
@@ -113,13 +115,7 @@ class VisualServoAligner(Node):
         qw = t_base.transform.rotation.w
         
         # Rotate vector (x,y,z) by quaternion q
-        # v_rotated = q * v * q_inv
-        # ... Implementing standard quaternion rotation ...
-        
-        # Helper for rotation
-        # x_new = (1-2yy-2zz)x + (2xy-2zw)y + (2xz+2yw)z
-        # y_new = (2xy+2zw)x + (1-2xx-2zz)y + (2yz-2xw)z
-        # z_new = (2xz-2yw)x + (2yz+2xw)y + (1-2xx-2yy)z
+        # สูตรการหมุน Vector ด้วย Quaternion
         
         vx, vy, vz = x, y, z
         
@@ -131,9 +127,9 @@ class VisualServoAligner(Node):
         target_pose.position.x = t_base.transform.translation.x + rx
         target_pose.position.y = t_base.transform.translation.y + ry
         target_pose.position.z = t_base.transform.translation.z + rz
-        target_pose.orientation = t_base.transform.rotation # Keep same orientation
+        target_pose.orientation = t_base.transform.rotation # รักษา Orientation เดิมไว้
 
-        # 3. Request Cartesian Path
+        # 3. ขอ Cartesian Path จาก MoveIt
         req = GetCartesianPath.Request()
         req.header.frame_id = self.base_frame
         req.header.stamp = self.get_clock().now().to_msg()
@@ -152,7 +148,7 @@ class VisualServoAligner(Node):
             self.get_logger().error(f"❌ Path Planning Failed: {response.error_code.val}")
             return
 
-        # 4. Execute
+        # 4. สั่ง Execute Trajectory
         goal_msg = ExecuteTrajectory.Goal()
         goal_msg.trajectory = response.solution
         
@@ -169,7 +165,7 @@ class VisualServoAligner(Node):
         rclpy.spin_until_future_complete(self, result_future)
 
 def main(args=None):
-    rclpy.init(args=args)
+    rclpy.init(args=args)  # เริ่มต้น ROS 2
     
     if len(sys.argv) < 2:
         print("\n⚠️  Usage Error!")
@@ -177,12 +173,12 @@ def main(args=None):
         print("   Example: ros2 run mani_p_moveit_config3 visual_servo_align.py tag2\n")
         return
 
-    tag_name = sys.argv[1]
+    tag_name = sys.argv[1]  # รับชื่อ Tag
 
     aligner = VisualServoAligner()
-    aligner.align_to_tag(tag_name)
+    aligner.align_to_tag(tag_name)  # เริ่มปรับตำแหน่ง
     
-    rclpy.shutdown()
+    rclpy.shutdown()  # ปิด ROS 2
 
 if __name__ == '__main__':
     main()

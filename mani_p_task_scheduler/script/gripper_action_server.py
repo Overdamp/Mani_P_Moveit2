@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionServer, ActionClient
-from rclpy.callback_groups import ReentrantCallbackGroup
-from moveit_msgs.action import MoveGroup
-from moveit_msgs.msg import MoveItErrorCodes
-import time
+import rclpy  # นำเข้าไลบรารี rclpy
+from rclpy.node import Node  # นำเข้าคลาส Node
+from rclpy.action import ActionServer, ActionClient  # นำเข้า ActionServer และ ActionClient
+from rclpy.callback_groups import ReentrantCallbackGroup  # นำเข้า Callback Group แบบ Reentrant
+from moveit_msgs.action import MoveGroup  # นำเข้า action definition สำหรับ MoveGroup
+from moveit_msgs.msg import MoveItErrorCodes  # นำเข้า Error Codes ของ MoveIt
+import time  # นำเข้า time
 
-# Custom Action Interface
-# Custom Action Interface
+# Custom Action Interface (นำเข้า Action Interface ที่สร้างเอง)
 from mani_p_actions.action import GripperControl
-from sensor_msgs.msg import JointState
-from tf2_ros import Buffer, TransformListener
+from sensor_msgs.msg import JointState  # นำเข้า message types สำหรับ Joint State
+from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
 
 class GripperActionServer(Node):
 
     def __init__(self):
-        super().__init__('gripper_action_server')
+        super().__init__('gripper_action_server')  # สร้าง Node ชื่อ 'gripper_action_server'
         
-        self.cb_group = ReentrantCallbackGroup()
+        self.cb_group = ReentrantCallbackGroup()  # สร้าง Callback Group เพื่อให้ทำงานขนานกันได้
 
+        # สร้าง Action Server สำหรับ GripperControl
         self._action_server = ActionServer(
             self,
             GripperControl,
@@ -28,26 +28,27 @@ class GripperActionServer(Node):
             callback_group=self.cb_group
         )
 
-        # MoveGroup Client for Gripper
+        # MoveGroup Client for Gripper (สร้าง Client สำหรับ MoveGroup เพื่อคุม Gripper)
         self._move_group_client = ActionClient(self, MoveGroup, 'move_action', callback_group=self.cb_group)
         
-        self.gripper_group_name = "gripper"
-        self.gripper_group_name = "gripper"
+        self.gripper_group_name = "gripper"  # ชื่อกลุ่ม Gripper
         self.get_logger().info('✅ Gripper Action Server Ready (MoveIt Named Targets).')
         
-        # TF Setup
+        # TF Setup (ตั้งค่า TF)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         
-        # Joint State Subscription
+        # Joint State Subscription (รับค่า Joint State)
         self.current_joints = {}
         self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
 
     def joint_callback(self, msg):
+        # Callback สำหรับเก็บค่า Joint ปัจจุบัน
         for i, name in enumerate(msg.name):
             self.current_joints[name] = msg.position[i]
 
     def log_status(self):
+        # ฟังก์ชันสำหรับ Log สถานะ TCP และ Joint
         try:
             if self.tf_buffer.can_transform('Base_link', 'tcp_link', rclpy.time.Time()):
                 t = self.tf_buffer.lookup_transform('Base_link', 'tcp_link', rclpy.time.Time())
@@ -61,6 +62,7 @@ class GripperActionServer(Node):
             pass
 
     async def execute_callback(self, goal_handle):
+        # Callback หลักเมื่อได้รับ Goal
         is_open = goal_handle.request.open
         target_name = "gripper_open" if is_open else "gripper_close"
         self.get_logger().info(f"🖐️ Gripper Command: {target_name}")
@@ -70,43 +72,17 @@ class GripperActionServer(Node):
             goal_handle.abort()
             return GripperControl.Result(success=False)
 
-        # Create MoveGroup Goal
+        # Create MoveGroup Goal (สร้าง Goal สำหรับ MoveGroup)
         goal_msg = MoveGroup.Goal()
         goal_msg.request.group_name = self.gripper_group_name
         goal_msg.request.num_planning_attempts = 10
         goal_msg.request.allowed_planning_time = 5.0
         
-        # Set Named Target
+        # Set Named Target (กำหนดเป้าหมายตามชื่อ)
         # Note: MoveGroup.Goal doesn't have a direct 'named_target' field in the request root.
-        # It's inside MotionPlanRequest -> workspace_parameters? No.
-        # It's usually set via helper in C++, but in raw message:
-        # We need to set goal_constraints to match the named target? 
-        # Actually, MoveGroup action takes a MotionPlanRequest.
-        # But wait, standard MoveIt usage via Python interface uses `set_named_target`.
-        # Here we are using raw ActionClient.
-        # Named targets are stored in SRDF. We can't easily "send" a named target string via MoveGroup Action directly 
-        # WITHOUT looking up what that named target means (joint values) first.
+        # (หมายเหตุ: MoveGroup.Goal ไม่มีฟิลด์ named_target โดยตรง)
         
-        # HOWEVER! There is a trick. We can use the 'MoveGroupCommander' python wrapper if we want, 
-        # but that creates its own node/publishers which might conflict or be heavy.
-        # Let's try to be smart.
-        
-        # Alternative: The user said they use "gripper_open/gripper_close".
-        # If we want to stick to raw ActionClient, we need to know the joint values.
-        # Usually: Open = 0.019 (or similar), Close = -0.01 (or similar).
-        
-        # BUT, to be safe and follow user's "Named Target" workflow, maybe we should use `moveit_commander`?
-        # Or just hardcode the joint values if we know them?
-        # Let's try to use `moveit_commander` for simplicity if available, OR just hardcode standard values for Mani-P.
-        
-        # Let's hardcode for now based on standard OpenManipulator-P:
-        # Open: 0.019
-        # Close: -0.01 (or 0.0 depending on calibration)
-        
-        # Wait, if the user explicitly said "gripper_open/gripper_close", they might have defined it in SRDF.
-        # Let's try to use `moveit_commander`? No, it's heavy.
-        
-        # Values from config/Manipulator_station_urdf_2.srdf
+        # Values from config/Manipulator_station_urdf_2.srdf (ค่าจากไฟล์ SRDF)
         # gripper_open: finger_middle_joint_l = 0.45099
         # gripper_close: finger_middle_joint_l = -1.1 (Modified for even tighter grip)
         

@@ -1,35 +1,37 @@
 #!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionClient
-from geometry_msgs.msg import PoseStamped
-from moveit_msgs.action import MoveGroup
-from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint
-from shape_msgs.msg import SolidPrimitive
+import rclpy  # นำเข้าไลบรารี rclpy
+from rclpy.node import Node  # นำเข้าคลาส Node
+from rclpy.action import ActionClient  # นำเข้า ActionClient
+from geometry_msgs.msg import PoseStamped  # นำเข้า message types
+from moveit_msgs.action import MoveGroup  # นำเข้า action definition สำหรับ MoveGroup
+from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint  # นำเข้า message types สำหรับข้อจำกัด
+from shape_msgs.msg import SolidPrimitive  # นำเข้า message types สำหรับรูปทรง
 
 class SimpleShelfMover(Node):
     def __init__(self):
-        super().__init__('simple_shelf_mover')
+        super().__init__('simple_shelf_mover')  # สร้าง Node ชื่อ 'simple_shelf_mover'
         
-        # Subscriber
+        # Subscriber (รับข้อมูล Pose เป้าหมาย)
         self.subscription = self.create_subscription(
             PoseStamped,
             'shelf_goal_pose',
             self.goal_callback,
             10)
             
-        # MoveIt Action Client
+        # MoveIt Action Client (สร้าง Client สำหรับ MoveGroup)
         self._action_client = ActionClient(self, MoveGroup, 'move_action')
         
         self.get_logger().info("🤖 Simple Shelf Mover Waiting for Goal on /shelf_goal_pose ...")
 
     def goal_callback(self, msg):
+        # Callback เมื่อได้รับ Goal
         self.get_logger().info("📩 Received Goal! Planning move...")
         self.get_logger().info(f"   Position: ({msg.pose.position.x:.3f}, {msg.pose.position.y:.3f}, {msg.pose.position.z:.3f})")
         self.get_logger().info(f"   Orientation: ({msg.pose.orientation.x:.3f}, {msg.pose.orientation.y:.3f}, {msg.pose.orientation.z:.3f}, {msg.pose.orientation.w:.3f})")
         self.send_move_goal(msg)
 
     def send_move_goal(self, pose_stamped):
+        # ส่ง Goal ไปยัง MoveIt
         if not self._action_client.wait_for_server(timeout_sec=5.0):
             self.get_logger().error("❌ MoveGroup Action Server not available!")
             return
@@ -41,7 +43,7 @@ class SimpleShelfMover(Node):
         goal_msg.request.max_velocity_scaling_factor = 0.5
         goal_msg.request.max_acceleration_scaling_factor = 0.5
         
-        # Position Constraint
+        # Position Constraint (ข้อจำกัดตำแหน่ง)
         pcm = PositionConstraint()
         pcm.header.frame_id = 'Base_link'
         pcm.link_name = 'tcp_link'
@@ -49,12 +51,12 @@ class SimpleShelfMover(Node):
         pcm.target_point_offset.y = 0.0
         pcm.target_point_offset.z = 0.0
         
-        # Box Constraint (Relaxed to 5cm)
+        # Box Constraint (Relaxed to 5cm) (สร้างกล่องข้อจำกัดขนาด 5cm)
         pcm.constraint_region.primitives.append(SolidPrimitive(type=SolidPrimitive.BOX, dimensions=[0.05, 0.05, 0.05]))
         pcm.constraint_region.primitive_poses.append(pose_stamped.pose)
         pcm.weight = 1.0
         
-        # Orientation Constraint (Relaxed)
+        # Orientation Constraint (Relaxed) (ข้อจำกัดการหมุน - ผ่อนปรน)
         ocm = OrientationConstraint()
         ocm.header.frame_id = 'Base_link'
         ocm.link_name = 'tcp_link'
@@ -71,6 +73,7 @@ class SimpleShelfMover(Node):
         self._send_goal_future.add_done_callback(self.goal_response_callback)
 
     def goal_response_callback(self, future):
+        # Callback เมื่อ Goal ถูกส่งไปแล้ว
         goal_handle = future.result()
         if not goal_handle.accepted:
             self.get_logger().error('❌ Goal rejected by MoveIt')
@@ -81,6 +84,7 @@ class SimpleShelfMover(Node):
         self._get_result_future.add_done_callback(self.get_result_callback)
 
     def get_result_callback(self, future):
+        # Callback เมื่อการเคลื่อนที่เสร็จสิ้น
         result = future.result().result
         if result.error_code.val == 1:
             self.get_logger().info('🎉 Move Succeeded!')
@@ -88,11 +92,11 @@ class SimpleShelfMover(Node):
             self.get_logger().error(f'❌ Move Failed with error code: {result.error_code.val}')
 
 def main(args=None):
-    rclpy.init(args=args)
+    rclpy.init(args=args)  # เริ่มต้น ROS 2
     node = SimpleShelfMover()
-    rclpy.spin(node)
+    rclpy.spin(node)  # หมุน loop
     node.destroy_node()
-    rclpy.shutdown()
+    rclpy.shutdown()  # ปิด ROS 2
 
 if __name__ == '__main__':
     main()

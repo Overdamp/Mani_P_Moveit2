@@ -1,35 +1,34 @@
 #!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from rclpy.action import ActionServer, ActionClient
-from rclpy.callback_groups import ReentrantCallbackGroup
-from geometry_msgs.msg import Pose
-from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint, BoundingVolume
-from moveit_msgs.action import MoveGroup, ExecuteTrajectory
-from moveit_msgs.srv import GetCartesianPath
-from shape_msgs.msg import SolidPrimitive
-from tf2_ros import Buffer, TransformListener
-import math
-import time
+import rclpy  # นำเข้าไลบรารี rclpy
+from rclpy.node import Node  # นำเข้าคลาส Node
+from rclpy.action import ActionServer, ActionClient  # นำเข้า ActionServer และ ActionClient
+from rclpy.callback_groups import ReentrantCallbackGroup  # นำเข้า Callback Group แบบ Reentrant
+from geometry_msgs.msg import Pose  # นำเข้า message types
+from moveit_msgs.msg import Constraints, PositionConstraint, OrientationConstraint, BoundingVolume  # นำเข้า message types สำหรับข้อจำกัด
+from moveit_msgs.action import MoveGroup, ExecuteTrajectory  # นำเข้า action definition
+from moveit_msgs.srv import GetCartesianPath  # นำเข้า service definition
+from shape_msgs.msg import SolidPrimitive  # นำเข้า message types สำหรับรูปทรง
+from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
+import math  # นำเข้า math
+import time  # นำเข้า time
 
-# Custom Action Interface
-# Custom Action Interface
+# Custom Action Interface (นำเข้า Action Interface ที่สร้างเอง)
 from mani_p_actions.action import ApproachTag
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import JointState  # นำเข้า message types สำหรับ Joint State
 
 class ApproachActionServer(Node):
 
     def __init__(self):
-        super().__init__('approach_action_server')
+        super().__init__('approach_action_server')  # สร้าง Node ชื่อ 'approach_action_server'
         
-        self.arm_group_name = "arm"
-        self.ee_link = "tcp_link"
-        self.base_frame = "Base_link"
+        self.arm_group_name = "arm"      # ชื่อกลุ่มแขนกล
+        self.ee_link = "tcp_link"        # ชื่อ link ปลายมือจับ
+        self.base_frame = "Base_link"    # ชื่อ frame อ้างอิง
         
-        # Callback Group for concurrency
+        # Callback Group for concurrency (สร้าง Callback Group เพื่อให้ทำงานขนานกันได้)
         self.cb_group = ReentrantCallbackGroup()
 
-        # Action Server
+        # Action Server (สร้าง Action Server สำหรับ ApproachTag)
         self._action_server = ActionServer(
             self,
             ApproachTag,
@@ -38,26 +37,28 @@ class ApproachActionServer(Node):
             callback_group=self.cb_group
         )
 
-        # MoveIt Clients
+        # MoveIt Clients (สร้าง Client สำหรับ MoveIt)
         self._move_group_client = ActionClient(self, MoveGroup, 'move_action', callback_group=self.cb_group)
         self._execute_client = ActionClient(self, ExecuteTrajectory, 'execute_trajectory', callback_group=self.cb_group)
         self._cartesian_client = self.create_client(GetCartesianPath, 'compute_cartesian_path', callback_group=self.cb_group)
         
-        # TF
+        # TF (ตัวจัดการ Transform)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.get_logger().info('✅ Approach Action Server Ready.')
         
-        # Joint State Subscription
+        # Joint State Subscription (รับค่า Joint State)
         self.current_joints = {}
         self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
 
     def joint_callback(self, msg):
+        # Callback สำหรับเก็บค่า Joint ปัจจุบัน
         for i, name in enumerate(msg.name):
             self.current_joints[name] = msg.position[i]
 
     def log_status(self):
+        # ฟังก์ชันสำหรับ Log สถานะ TCP และ Joint
         try:
             if self.tf_buffer.can_transform(self.base_frame, self.ee_link, rclpy.time.Time()):
                 t = self.tf_buffer.lookup_transform(self.base_frame, self.ee_link, rclpy.time.Time())
@@ -71,6 +72,7 @@ class ApproachActionServer(Node):
             pass
 
     async def execute_callback(self, goal_handle):
+        # Callback หลักเมื่อได้รับ Goal
         self.get_logger().info(f"🚀 Executing Approach Goal: Tag={goal_handle.request.tag_name}, Dist={goal_handle.request.distance}")
         
         tag_frame = goal_handle.request.tag_name
@@ -81,9 +83,9 @@ class ApproachActionServer(Node):
         feedback_msg.current_state = "Planning"
         goal_handle.publish_feedback(feedback_msg)
 
-        # --- Logic from approach_tag_smart.py ---
+        # --- Logic from approach_tag_smart.py --- (Logic เดียวกับ approach_tag_smart.py)
         
-        # 1. Create Goal
+        # 1. Create Goal (สร้าง Goal สำหรับ MoveGroup)
         goal_msg = MoveGroup.Goal()
         goal_msg.request.group_name = self.arm_group_name
         goal_msg.request.num_planning_attempts = 10
@@ -98,11 +100,11 @@ class ApproachActionServer(Node):
         goal_msg.request.workspace_parameters.max_corner.y = 1.0
         goal_msg.request.workspace_parameters.max_corner.z = 1.0
 
-        # 2. Constraints
+        # 2. Constraints (สร้างข้อจำกัด)
         constraints = Constraints()
         constraints.name = f"Approach_{tag_frame}"
 
-        # Position Constraint
+        # Position Constraint (ข้อจำกัดตำแหน่ง)
         pos_con = PositionConstraint()
         pos_con.header.frame_id = tag_frame
         pos_con.link_name = self.ee_link
@@ -120,7 +122,7 @@ class ApproachActionServer(Node):
         region.primitive_poses.append(target_pose)
         pos_con.constraint_region = region
         
-        # Orientation Constraint
+        # Orientation Constraint (ข้อจำกัดการหมุน)
         ori_con = OrientationConstraint()
         ori_con.header.frame_id = tag_frame
         ori_con.link_name = self.ee_link
@@ -143,7 +145,7 @@ class ApproachActionServer(Node):
         constraints.orientation_constraints.append(ori_con)
         goal_msg.request.goal_constraints.append(constraints)
 
-        # 3. Send to MoveGroup
+        # 3. Send to MoveGroup (ส่ง Goal ไปยัง MoveGroup)
         feedback_msg.current_state = "Moving"
         goal_handle.publish_feedback(feedback_msg)
         
@@ -154,7 +156,7 @@ class ApproachActionServer(Node):
 
         send_goal_future = self._move_group_client.send_goal_async(goal_msg)
         
-        # Wait for goal acceptance
+        # Wait for goal acceptance (รอการตอบรับ Goal)
         while not send_goal_future.done():
             if goal_handle.is_cancel_requested:
                 self.get_logger().info('Goal canceled before acceptance')
@@ -169,7 +171,7 @@ class ApproachActionServer(Node):
             goal_handle.abort()
             return ApproachTag.Result(success=False, message="Goal Rejected")
 
-        # Wait for result
+        # Wait for result (รอผลลัพธ์)
         result_future = goal_handle_moveit.get_result_async()
         while not result_future.done():
             if goal_handle.is_cancel_requested:
@@ -196,7 +198,7 @@ def main(args=None):
     rclpy.init(args=args)
     node = ApproachActionServer()
     
-    # Use MultiThreadedExecutor for ReentrantCallbackGroup
+    # Use MultiThreadedExecutor for ReentrantCallbackGroup (ใช้ MultiThreadedExecutor)
     from rclpy.executors import MultiThreadedExecutor
     executor = MultiThreadedExecutor()
     executor.add_node(node)

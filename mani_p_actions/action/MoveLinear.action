@@ -1,5 +1,6 @@
 # Goal
-float32 distance # meters. Positive = Forward (Z+), Negative = Backward (Z-)
+string direction # "forward", "backward", "up", "down", "left", "right"
+float32 distance # meters
 ---
 # Result
 bool success

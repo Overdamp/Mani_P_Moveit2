@@ -1,45 +1,48 @@
 #!/usr/bin/env python3
-import rclpy
-import py_trees
-import py_trees_ros
-import py_trees.console as console
-import sys
-import time
+import rclpy  # นำเข้าไลบรารี rclpy
+import py_trees  # นำเข้า py_trees (Behavior Tree Library)
+import py_trees_ros  # นำเข้า py_trees_ros (ROS Wrapper สำหรับ py_trees)
+import py_trees.console as console  # นำเข้า console สำหรับแสดงผลสี
+import sys  # นำเข้า sys
+import time  # นำเข้า time
 
+# นำเข้า Custom Actions ที่สร้างไว้
 from mani_p_actions.action import MoveToShelf, ApproachTag, VisualServo, MoveLinear, GripperControl
-from geometry_msgs.msg import PoseStamped
-from tf2_ros import Buffer, TransformListener
+from geometry_msgs.msg import PoseStamped  # นำเข้า message types
+from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
 
-# --- Custom Behaviors ---
+# --- Custom Behaviors (สร้าง Behavior เอง) ---
 
 class ScanForCube(py_trees.behaviour.Behaviour):
     def __init__(self, name="Scan For Cube"):
         super(ScanForCube, self).__init__(name)
-        self.blackboard = py_trees.blackboard.Blackboard()
+        self.blackboard = py_trees.blackboard.Blackboard()  # ใช้ Blackboard เพื่อแชร์ข้อมูลระหว่าง Node
         self.tf_buffer = None
         self.tf_listener = None
 
     def setup(self, **kwargs):
+        # ตั้งค่าเริ่มต้น (ทำงานครั้งเดียวเมื่อเริ่ม Tree)
         self.node = kwargs.get('node')
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self.node)
 
     def update(self):
-        # Check for tags ID 1-6
+        # ฟังก์ชันทำงานหลัก (วนลูปทุก Tick)
+        # Check for tags ID 1-6 (ตรวจสอบ Tag ID 1-6)
         for i in range(1, 7):
             tag_frame = f"tag36h11:{i}"
             try:
-                # Check if transform exists
+                # Check if transform exists (ตรวจสอบว่าเจอ TF ของ Tag หรือไม่)
                 if self.tf_buffer.can_transform('Base_link', tag_frame, rclpy.time.Time()):
-                    self.blackboard.set("detected_id", i)
-                    self.blackboard.set("detected_tag_name", tag_frame)
+                    self.blackboard.set("detected_id", i)  # บันทึก ID ลง Blackboard
+                    self.blackboard.set("detected_tag_name", tag_frame)  # บันทึกชื่อ Tag ลง Blackboard
                     self.node.get_logger().info(f"📦 Found Cube ID: {i}")
-                    return py_trees.common.Status.SUCCESS
+                    return py_trees.common.Status.SUCCESS  # เจอแล้ว ส่งคืน Success
             except Exception:
                 pass
         
         self.node.get_logger().info("Scanning... No cube found.")
-        return py_trees.common.Status.FAILURE
+        return py_trees.common.Status.FAILURE  # ไม่เจอ ส่งคืน Failure
 
 class GetTargetSlot(py_trees.behaviour.Behaviour):
     def __init__(self, name="Calculate Target Slot"):
@@ -47,12 +50,13 @@ class GetTargetSlot(py_trees.behaviour.Behaviour):
         self.blackboard = py_trees.blackboard.Blackboard()
 
     def update(self):
-        cube_id = self.blackboard.get("detected_id")
+        # คำนวณช่องเป้าหมายบนชั้นวาง
+        cube_id = self.blackboard.get("detected_id")  # ดึง ID จาก Blackboard
         
         if cube_id is None:
             return py_trees.common.Status.FAILURE
             
-        # Mapping Logic
+        # Mapping Logic (กำหนดตำแหน่งตาม ID)
         # ID 1 -> (2, 1)
         # ID 2 -> (2, 2)
         # ID 3 -> (2, 3)
@@ -71,14 +75,15 @@ class GetTargetSlot(py_trees.behaviour.Behaviour):
             self.node.get_logger().warn(f"Unknown ID: {cube_id}")
             return py_trees.common.Status.FAILURE
             
-        self.blackboard.set("target_row", row)
-        self.blackboard.set("target_col", col)
+        self.blackboard.set("target_row", row)  # บันทึกแถวเป้าหมาย
+        self.blackboard.set("target_col", col)  # บันทึกคอลัมน์เป้าหมาย
         self.node.get_logger().info(f"🎯 Target Slot: Row {row}, Col {col}")
         return py_trees.common.Status.SUCCESS
 
-# --- Tree Construction ---
+# --- Tree Construction (สร้างโครงสร้าง Tree) ---
 
 def create_root():
+    # ฟังก์ชันสร้าง Tree (ตัวอย่างเก่า ไม่ได้ใช้จริงใน main)
     root = py_trees.composites.Sequence(name="Cube Sorting Task", memory=True)
     
     # Blackboard
@@ -95,30 +100,18 @@ def create_root():
     # 2. Scan & Detect (Retry until found)
     scan_seq = py_trees.composites.Sequence(name="Scan Sequence", memory=True)
     scan_action = ScanForCube()
-    # Retry scanning 10 times
+    # Retry scanning 10 times (ลองใหม่ 10 ครั้งถ้าไม่เจอ)
     scan_retry = py_trees.decorators.Retry(name="Retry Scan", child=scan_action, num_failures=10)
     scan_seq.add_child(scan_retry)
 
     # 3. Pick Sequence
     pick_seq = py_trees.composites.Sequence(name="Pick Sequence", memory=True)
     
-    # 3.1 Approach (Dynamic Goal from Blackboard)
-    # Note: py_trees_ros ActionClient doesn't support dynamic goals easily out of the box without custom code.
-    # We need a custom behaviour that reads blackboard and sends action.
-    # For simplicity, I will implement a wrapper class below.
-    
-    # 3.2 Visual Servo
-    # 3.3 Open Gripper
-    # 3.4 Move Linear (Approach)
-    # 3.5 Close Gripper
-    # 3.6 Move Linear (Retreat)
-    
-    # ... Wait, standard ActionClient takes a static goal. We need dynamic goals.
-    # I'll implement a DynamicActionClient for this.
+    # ... (ส่วนนี้ยังไม่สมบูรณ์ในฟังก์ชันตัวอย่างนี้)
     
     return root
 
-# --- Helper for Dynamic Actions ---
+# --- Helper for Dynamic Actions (ตัวช่วยสำหรับ Action แบบ Dynamic) ---
 
 class DynamicApproach(py_trees.behaviour.Behaviour):
     def __init__(self, name="Dynamic Approach"):
@@ -132,7 +125,8 @@ class DynamicApproach(py_trees.behaviour.Behaviour):
         self.logger = self.node.get_logger()
 
     def initialise(self):
-        self.tag_name = self.blackboard.get("detected_tag_name")
+        # เริ่มต้นก่อนทำงาน
+        self.tag_name = self.blackboard.get("detected_tag_name")  # ดึงชื่อ Tag จาก Blackboard
         self.logger.info(f"Approaching {self.tag_name}")
         self.goal_sent = False
         self.future = None
@@ -140,6 +134,7 @@ class DynamicApproach(py_trees.behaviour.Behaviour):
         self.result_future = None
 
     def update(self):
+        # ส่ง Goal และรอผลลัพธ์
         if not self.goal_sent:
             goal = ApproachTag.Goal()
             goal.tag_name = self.tag_name
@@ -243,12 +238,12 @@ class DynamicMoveToShelf(py_trees.behaviour.Behaviour):
             return py_trees.common.Status.SUCCESS if self.result_future.result().result.success else py_trees.common.Status.FAILURE
         return py_trees.common.Status.FAILURE
 
-# --- Re-Create Root with Dynamic Actions ---
+# --- Re-Create Root with Dynamic Actions (สร้าง Tree เต็มรูปแบบ) ---
 
 def create_full_tree():
     root = py_trees.composites.Sequence(name="Cube Sorting Task", memory=True)
     
-    # 1. Move to Pickup Zone
+    # 1. Move to Pickup Zone (ไปที่จุดรับของ)
     move_pickup = py_trees_ros.actions.ActionClient(
         name="Go to Pickup Zone",
         action_type=MoveToShelf,
@@ -257,12 +252,12 @@ def create_full_tree():
     )
     root.add_child(move_pickup)
 
-    # 2. Scan
+    # 2. Scan (สแกนหาของ)
     scan = ScanForCube()
     scan_retry = py_trees.decorators.Retry(name="Retry Scan", child=scan, num_failures=20)
     root.add_child(scan_retry)
 
-    # 3. Pick Sequence
+    # 3. Pick Sequence (ลำดับการหยิบ)
     pick_seq = py_trees.composites.Sequence(name="Pick Sequence", memory=True)
     
     approach = DynamicApproach()
@@ -299,11 +294,11 @@ def create_full_tree():
     pick_seq.add_children([approach, servo, gripper_open, move_in, gripper_close, move_out])
     root.add_child(pick_seq)
 
-    # 4. Calculate Slot
+    # 4. Calculate Slot (คำนวณช่องวาง)
     calc_slot = GetTargetSlot()
     root.add_child(calc_slot)
 
-    # 5. Place Sequence
+    # 5. Place Sequence (ลำดับการวาง)
     place_seq = py_trees.composites.Sequence(name="Place Sequence", memory=True)
     
     move_target = DynamicMoveToShelf()
@@ -333,38 +328,18 @@ def create_full_tree():
     root.add_child(place_seq)
     
     # 6. Return Home (Loop back to start)
-    # Since root is a Sequence with memory=True, once it finishes, it returns SUCCESS.
-    # To loop, we can wrap the whole thing in a decorator or just let the main loop restart it?
-    # Usually, we wrap in a loop decorator.
+    # เนื่องจาก root เป็น Sequence(memory=True) เมื่อจบแล้วจะส่งคืน SUCCESS
+    # เพื่อให้วนลูป เราจะใช้ Decorator ใน main
     
     return root
 
 def main():
     rclpy.init(args=None)
     
-    # Wrap in infinite loop
+    # Wrap in infinite loop (วนลูปไม่รู้จบ)
     task_root = create_full_tree()
-    # We want to clear memory after each full run so it restarts
-    # But Sequence(memory=True) keeps state. 
-    # Actually, if the Sequence finishes (SUCCESS), it resets itself for the next tick if we tick it again?
-    # No, with memory=True, if it succeeds, it stays succeeded until reset.
-    # We should use a Decorator to repeat.
     
-    main_root = py_trees.decorators.OneShot(
-        name="One Shot Task",
-        child=task_root,
-        policy=py_trees.common.OneShotPolicy.ON_COMPLETION
-    )
-    # Wait, user wants a loop.
-    # Let's just use a standard Sequence without memory at the top level?
-    # No, we need memory for the steps.
-    
-    # Correct way: Root is a Sequence(memory=True).
-    # We wrap it in a loop?
-    
-    # Let's just make the root a Sequence(memory=True) and manually reset it in the main loop if it succeeds?
-    # Or use py_trees.decorators.Repeat
-    
+    # ใช้ Repeat Decorator เพื่อให้ทำงานซ้ำ
     final_root = py_trees.decorators.Repeat(
         name="Infinite Loop",
         child=task_root,
@@ -377,7 +352,7 @@ def main():
     print("🚀 Cube Sorting BT Started")
     
     try:
-        tree.tick_tock(period_ms=500.0)
+        tree.tick_tock(period_ms=500.0)  # Tick ทุกๆ 500ms
         rclpy.spin(tree.node)
     except KeyboardInterrupt:
         tree.interrupt()

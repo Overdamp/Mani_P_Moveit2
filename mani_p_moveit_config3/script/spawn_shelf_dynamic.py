@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped, Point, Quaternion
-from moveit_msgs.msg import CollisionObject
-from shape_msgs.msg import Mesh, MeshTriangle
-from tf2_ros import Buffer, TransformListener
-import os
-import struct
-import math
-from collections import deque
-from ament_index_python.packages import get_package_share_directory
+import rclpy  # นำเข้าไลบรารี rclpy
+from rclpy.node import Node  # นำเข้าคลาส Node
+from geometry_msgs.msg import PoseStamped, Point, Quaternion  # นำเข้า message types
+from moveit_msgs.msg import CollisionObject  # นำเข้า message types สำหรับวัตถุชน
+from shape_msgs.msg import Mesh, MeshTriangle  # นำเข้า message types สำหรับ Mesh
+from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
+import os  # นำเข้า os
+import struct  # นำเข้า struct
+import math  # นำเข้า math
+from collections import deque  # นำเข้า deque
+from ament_index_python.packages import get_package_share_directory  # นำเข้าฟังก์ชันหา path package
 
 class ShelfMeshSpawner(Node):
 
     def __init__(self):
-        super().__init__('shelf_mesh_spawner')
+        super().__init__('shelf_mesh_spawner')  # สร้าง Node ชื่อ 'shelf_mesh_spawner'
 
         # --- CONFIG ---
-        self.pkg_name = 'mani_p_description'
-        self.stl_filename = 'work_shelf2.STL'
-        self.tag_frame = "tag11"  # เปลี่ยนตามที่ตั้งค่าในไฟล์ apriltag_tags.yaml
-        self.base_frame = "Base_link" # เช็คตัวพิมพ์เล็กใหญ่ดีๆ นะครับ
+        self.pkg_name = 'mani_p_description'  # ชื่อ package ที่เก็บไฟล์ STL
+        self.stl_filename = 'work_shelf2.STL'  # ชื่อไฟล์ STL
+        self.tag_frame = "tag11"  # ชื่อ Tag ที่ใช้อ้างอิง (เปลี่ยนตามที่ตั้งค่าในไฟล์ apriltag_tags.yaml)
+        self.base_frame = "Base_link" # ชื่อ Frame หลัก (เช็คตัวพิมพ์เล็กใหญ่ดีๆ)
         
-        # STL Offset correction (คงเดิมตามที่คุณบอกว่าถูกแล้ว)
-        self.stl_offset_roll  = math.pi / 2.0
+        # STL Offset correction (การปรับแก้ทิศทางของ STL)
+        self.stl_offset_roll  = math.pi / 2.0  # หมุนแกน Roll 90 องศา
         self.stl_offset_pitch = 0.0
         self.stl_offset_yaw   = 0.0
         
@@ -39,7 +39,7 @@ class ShelfMeshSpawner(Node):
         
         # --------------------------------------
 
-        # สร้างถังเก็บข้อมูล
+        # สร้างถังเก็บข้อมูลสำหรับ Smoothing
         self.pos_x_buffer = deque(maxlen=self.buffer_size)
         self.pos_y_buffer = deque(maxlen=self.buffer_size)
         self.pos_z_buffer = deque(maxlen=self.buffer_size)
@@ -52,16 +52,17 @@ class ShelfMeshSpawner(Node):
         except:
             self.stl_path = ""
 
-        self.collision_pub = self.create_publisher(CollisionObject, '/collision_object', 10)
+        self.collision_pub = self.create_publisher(CollisionObject, '/collision_object', 10)  # Publisher
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
         # 2. เพิ่มความถี่: จาก 0.1 (10Hz) เป็น 0.05 (20Hz)
-        self.timer = self.create_timer(0.05, self.update_shelf)
+        self.timer = self.create_timer(0.05, self.update_shelf)  # เริ่ม Timer
         self.get_logger().info(f'Shelf Spawner (High Speed Mode) Started.')
 
     # --- Helper Functions ---
     def get_euler_from_quaternion(self, q):
+        # แปลง Quaternion เป็น Euler
         sinr_cosp = 2 * (q.w * q.x + q.y * q.z)
         cosr_cosp = 1 - 2 * (q.x * q.x + q.y * q.y)
         roll = math.atan2(sinr_cosp, cosr_cosp)
@@ -75,6 +76,7 @@ class ShelfMeshSpawner(Node):
         return roll, pitch, yaw
 
     def get_quaternion_from_euler(self, roll, pitch, yaw):
+        # แปลง Euler เป็น Quaternion
         qx = math.sin(roll/2) * math.cos(pitch/2) * math.cos(yaw/2) - math.cos(roll/2) * math.sin(pitch/2) * math.sin(yaw/2)
         qy = math.cos(roll/2) * math.sin(pitch/2) * math.cos(yaw/2) + math.sin(roll/2) * math.cos(pitch/2) * math.sin(yaw/2)
         qz = math.cos(roll/2) * math.cos(pitch/2) * math.sin(yaw/2) - math.sin(roll/2) * math.sin(pitch/2) * math.cos(yaw/2)
@@ -82,6 +84,7 @@ class ShelfMeshSpawner(Node):
         return [qx, qy, qz, qw]
 
     def parse_stl_binary(self, filename):
+        # อ่านไฟล์ STL Binary
         mesh_msg = Mesh()
         if not os.path.exists(filename): return None
         with open(filename, 'rb') as f:
@@ -107,7 +110,7 @@ class ShelfMeshSpawner(Node):
             transform = self.tf_buffer.lookup_transform(
                 self.base_frame, self.tag_frame, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=0.03))
 
-            # Raw Data
+            # Raw Data (ข้อมูลดิบ)
             raw_x = transform.transform.translation.x
             raw_y = transform.transform.translation.y
             raw_z = transform.transform.translation.z
@@ -115,7 +118,7 @@ class ShelfMeshSpawner(Node):
             raw_q = transform.transform.rotation
             _, _, raw_yaw = self.get_euler_from_quaternion(raw_q)
 
-            # Update Buffer
+            # Update Buffer (เก็บข้อมูลลง Buffer)
             self.pos_x_buffer.append(raw_x)
             self.pos_y_buffer.append(raw_y)
             self.pos_z_buffer.append(raw_z)
@@ -124,7 +127,7 @@ class ShelfMeshSpawner(Node):
 
             if len(self.pos_x_buffer) < 1: return
 
-            # Average
+            # Average (หาค่าเฉลี่ย)
             avg_x = sum(self.pos_x_buffer) / len(self.pos_x_buffer)
             avg_y = sum(self.pos_y_buffer) / len(self.pos_y_buffer)
             avg_z = sum(self.pos_z_buffer) / len(self.pos_z_buffer)
@@ -133,7 +136,7 @@ class ShelfMeshSpawner(Node):
             avg_cos = sum(self.yaw_cos_buffer) / len(self.yaw_cos_buffer)
             avg_yaw = math.atan2(avg_sin, avg_cos)
 
-            # Create Object
+            # Create Object (สร้างวัตถุ)
             shelf = CollisionObject()
             shelf.header.frame_id = self.base_frame
             shelf.id = "shelf_mesh"
@@ -147,6 +150,7 @@ class ShelfMeshSpawner(Node):
             mesh_pose.pose.position.z = avg_z + self.pos_offset_z
             
             # Gravity Alignment (Roll/Pitch=0) + Smoothed Yaw
+            # บังคับให้ตั้งตรงตามแรงโน้มถ่วง (Roll=0, Pitch=0) และใช้ Yaw ที่เฉลี่ยมา
             final_roll  = 0.0     + self.stl_offset_roll
             final_pitch = 0.0     + self.stl_offset_pitch
             final_yaw   = avg_yaw + self.stl_offset_yaw
@@ -156,18 +160,18 @@ class ShelfMeshSpawner(Node):
 
             shelf.meshes.append(mesh_msg)
             shelf.mesh_poses.append(mesh_pose.pose)
-            shelf.operation = CollisionObject.ADD
+            shelf.operation = CollisionObject.ADD  # สั่งเพิ่มวัตถุ
             self.collision_pub.publish(shelf)
 
         except Exception as e:
-            pass
+            pass # ถ้าหา TF ไม่เจอก็ข้ามไป
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = ShelfMeshSpawner()
-    rclpy.spin(node)
+    rclpy.init(args=args)  # เริ่มต้น ROS 2
+    node = ShelfMeshSpawner()  # สร้าง Node
+    rclpy.spin(node)  # หมุน loop
     node.destroy_node()
-    rclpy.shutdown()
+    rclpy.shutdown()  # ปิด ROS 2
 
 if __name__ == '__main__':
     main()

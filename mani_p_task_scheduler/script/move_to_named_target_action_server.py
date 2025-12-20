@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-import rclpy
-from rclpy.action import ActionServer
-from rclpy.node import Node
-from rclpy.callback_groups import ReentrantCallbackGroup
-from rclpy.executors import MultiThreadedExecutor
+import rclpy  # นำเข้าไลบรารี rclpy
+from rclpy.action import ActionServer  # นำเข้า ActionServer
+from rclpy.node import Node  # นำเข้าคลาส Node
+from rclpy.callback_groups import ReentrantCallbackGroup  # นำเข้า Callback Group แบบ Reentrant
+from rclpy.executors import MultiThreadedExecutor  # นำเข้า MultiThreadedExecutor
 
-from mani_p_actions.action import MoveToNamedTarget
-from moveit_msgs.action import MoveGroup
-from moveit_msgs.msg import Constraints, JointConstraint
-from moveit_msgs.msg import Constraints, JointConstraint
-from rclpy.action import ActionClient
-from sensor_msgs.msg import JointState
-from tf2_ros import Buffer, TransformListener
+from mani_p_actions.action import MoveToNamedTarget  # นำเข้า Action Interface ที่สร้างเอง
+from moveit_msgs.action import MoveGroup  # นำเข้า action definition สำหรับ MoveGroup
+from moveit_msgs.msg import Constraints, JointConstraint  # นำเข้า message types สำหรับข้อจำกัด
+from rclpy.action import ActionClient  # นำเข้า ActionClient
+from sensor_msgs.msg import JointState  # นำเข้า message types สำหรับ Joint State
+from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
 
 class MoveToNamedTargetActionServer(Node):
     def __init__(self):
-        super().__init__('move_to_named_target_action_server')
+        super().__init__('move_to_named_target_action_server')  # สร้าง Node ชื่อ 'move_to_named_target_action_server'
         
-        self.callback_group = ReentrantCallbackGroup()
+        self.callback_group = ReentrantCallbackGroup()  # สร้าง Callback Group เพื่อให้ทำงานขนานกันได้
         
+        # สร้าง Action Server สำหรับ MoveToNamedTarget
         self._action_server = ActionServer(
             self,
             MoveToNamedTarget,
@@ -26,24 +26,26 @@ class MoveToNamedTargetActionServer(Node):
             self.execute_callback,
             callback_group=self.callback_group)
             
-        # MoveIt Action Client
+        # MoveIt Action Client (สร้าง Client สำหรับ MoveGroup)
         self._move_group_client = ActionClient(self, MoveGroup, 'move_action', callback_group=self.callback_group)
         
         self.get_logger().info("🏠 MoveToNamedTarget Action Server Ready")
         
-        # TF Setup
+        # TF Setup (ตั้งค่า TF)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         
-        # Joint State Subscription
+        # Joint State Subscription (รับค่า Joint State)
         self.current_joints = {}
         self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
 
     def joint_callback(self, msg):
+        # Callback สำหรับเก็บค่า Joint ปัจจุบัน
         for i, name in enumerate(msg.name):
             self.current_joints[name] = msg.position[i]
 
     def log_status(self):
+        # ฟังก์ชันสำหรับ Log สถานะ TCP และ Joint
         try:
             if self.tf_buffer.can_transform('Base_link', 'tcp_link', rclpy.time.Time()):
                 t = self.tf_buffer.lookup_transform('Base_link', 'tcp_link', rclpy.time.Time())
@@ -57,6 +59,7 @@ class MoveToNamedTargetActionServer(Node):
             pass
 
     async def execute_callback(self, goal_handle):
+        # Callback หลักเมื่อได้รับ Goal
         target_name = goal_handle.request.target_name
         self.get_logger().info(f"Executing goal: Move to '{target_name}'")
         
@@ -66,7 +69,7 @@ class MoveToNamedTargetActionServer(Node):
         feedback_msg.current_state = f"Planning for {target_name}..."
         goal_handle.publish_feedback(feedback_msg)
         
-        # Execute Move
+        # Execute Move (สั่งเคลื่อนที่)
         success = await self.move_to_named_target(target_name, goal_handle)
         
         if success:
@@ -81,6 +84,7 @@ class MoveToNamedTargetActionServer(Node):
         return result
 
     async def move_to_named_target(self, target_name, goal_handle_server):
+        # ฟังก์ชันสั่งเคลื่อนที่ไปยัง Named Target
         if not self._move_group_client.wait_for_server(timeout_sec=5.0):
             self.get_logger().error('MoveGroup action server not available')
             return False
@@ -92,30 +96,7 @@ class MoveToNamedTargetActionServer(Node):
         goal_msg.request.max_velocity_scaling_factor = 0.5
         goal_msg.request.max_acceleration_scaling_factor = 0.5
         
-        # Use Named Target (e.g., "home", "sleep")
-        # MoveIt supports setting named targets directly via constraints? 
-        # Actually, MoveGroup Goal has a field for this, but usually we set joint constraints.
-        # However, MoveIt's MoveGroupAction interface is complex. 
-        # The standard way for named target in MoveGroup Goal is usually via JointConstraints matching the named state.
-        # BUT, MoveIt also allows sending just the name if using the high-level interface (MoveGroupInterface in C++).
-        # For raw Action Client, we might need to look up the named target values OR use a specific field.
-        
-        # Let's check MoveGroup.msg definition or common usage.
-        # Usually, we set `request.goal_constraints` to match the named target.
-        # But we don't know the joint values here easily without querying robot_model.
-        
-        # ALTERNATIVE: Use `moveit_msgs/MoveGroupGoal` -> `request` -> `planner_id`? No.
-        # Wait, if we use `moveit_commander` (Python interface), it's easy: `group.set_named_target("home")`.
-        # But we are using raw Action Client to avoid `moveit_commander` dependency issues in pure ROS 2 node sometimes?
-        # Actually, `moveit_commander` might not be fully available or stable in all ROS 2 versions yet (or we want to stick to pure rclpy).
-        
-        # Let's try to find if we can pass the name directly.
-        # It seems we cannot pass the name directly in MoveGroupActionGoal easily without looking up values.
-        
-        # WORKAROUND: Hardcode common named targets for now, OR use a helper to look them up if possible.
-        # For Mani-P, "home" is usually all zeros or specific values.
-        
-        # Let's define "home" and "sleep" manually for robustness.
+        # กำหนดค่า Joint สำหรับ Named Target ต่างๆ
         
         joint_constraints = []
         
@@ -132,7 +113,7 @@ class MoveToNamedTargetActionServer(Node):
              }
              
         elif target_name.lower() == "sleep":
-             # Folded Pose
+             # Folded Pose (ท่าพับเก็บ)
              vals = {
                 'J1': 0.0, 
                 'J2': -1.57, 
@@ -168,7 +149,7 @@ class MoveToNamedTargetActionServer(Node):
         
         send_goal_future = self._move_group_client.send_goal_async(goal_msg)
         
-        # Wait for goal acceptance
+        # Wait for goal acceptance (รอการตอบรับ Goal)
         while not send_goal_future.done():
             if goal_handle_server.is_cancel_requested:
                 self.get_logger().info('Goal canceled before acceptance')
@@ -185,7 +166,7 @@ class MoveToNamedTargetActionServer(Node):
             
         result_future = goal_handle_moveit.get_result_async()
         
-        # Wait for result with cancellation check
+        # Wait for result with cancellation check (รอผลลัพธ์และตรวจสอบการยกเลิก)
         while not result_future.done():
             if goal_handle_server.is_cancel_requested:
                 self.get_logger().info('Cancellation requested. Cancelling MoveIt goal...')
