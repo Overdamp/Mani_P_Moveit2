@@ -47,7 +47,15 @@
         <joint name="finger_middle_joint_l" value="0.45099"/>
     </group_state>
     <group_state name="gripper_close" group="gripper">
-        <joint name="finger_middle_joint_l" value="-0.84901"/>
+        <joint name="finger_middle_joint_l" value="-1.4025"/>
+    </group_state>
+    <group_state name="arm_standby" group="arm">
+        <joint name="J1" value="0"/>
+        <joint name="J2" value="0.1322"/>
+        <joint name="J3" value="0.0299"/>
+        <joint name="J4" value="0"/>
+        <joint name="J5" value="0.9281"/>
+        <joint name="palm_joint" value="0"/>
     </group_state>
     <!--END EFFECTOR: Purpose: Represent information about an end effector.-->
     <end_effector name="endeffector" parent_link="L5" group="gripper" parent_group="arm"/>

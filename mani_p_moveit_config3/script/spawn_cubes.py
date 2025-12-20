@@ -7,6 +7,7 @@ from shape_msgs.msg import SolidPrimitive  # นำเข้า message types �
 from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
 import math  # นำเข้า math
 from collections import deque, defaultdict  # นำเข้า deque และ defaultdict
+import re # นำเข้า Regular Expression
 
 class CubeSpawner(Node):
 
@@ -16,7 +17,8 @@ class CubeSpawner(Node):
         # ==========================================
         # 🛠️ CONFIG ZONE 🛠️ (ส่วนตั้งค่า)
         # ==========================================
-        self.target_tags = ["tag1", "tag2", "tag3"]  # รายชื่อ Tag ที่ต้องการสร้าง Cube ทับ
+        # รองรับ Tag 1 ถึง 6
+        self.target_tags = [f"tag{i}" for i in range(1, 7)]  # ["tag1", "tag2", ..., "tag6"]
         self.base_frame = "Base_link"  # Frame อ้างอิงหลัก
         self.cube_size = 0.05  # ขนาดของ Cube (เมตร)
         
@@ -97,7 +99,15 @@ class CubeSpawner(Node):
                 # 4. สร้าง Collision Object (บังคับ Roll=0, Pitch=0)
                 obj = CollisionObject()
                 obj.header.frame_id = self.base_frame
-                obj.id = f"cube_{tag_id}" 
+                
+                # *** Map tagX -> cubeX ***
+                # ใช้ Regular Expression ดึงตัวเลขจาก tag
+                match = re.search(r'tag(\d+)', tag_id)
+                if match:
+                    num = match.group(1)
+                    obj.id = f"cube{num}" # tag1 -> cube1, tag2 -> cube2, ...
+                else:
+                    obj.id = f"cube_{tag_id}" # Fallback
 
                 primitive = SolidPrimitive()
                 primitive.type = SolidPrimitive.BOX

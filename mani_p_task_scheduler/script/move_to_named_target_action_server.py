@@ -12,6 +12,9 @@ from rclpy.action import ActionClient  # นำเข้า ActionClient
 from sensor_msgs.msg import JointState  # นำเข้า message types สำหรับ Joint State
 from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
 
+# Import SRDF Helper
+from mani_p_task_scheduler.script.srdf_helper import SRDFHelper
+
 class MoveToNamedTargetActionServer(Node):
     def __init__(self):
         super().__init__('move_to_named_target_action_server')  # สร้าง Node ชื่อ 'move_to_named_target_action_server'
@@ -38,6 +41,9 @@ class MoveToNamedTargetActionServer(Node):
         # Joint State Subscription (รับค่า Joint State)
         self.current_joints = {}
         self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
+        
+        # Initialize SRDF Helper (โหลดค่าท่าจากไฟล์ SRDF)
+        self.srdf_helper = SRDFHelper()
 
     def joint_callback(self, msg):
         # Callback สำหรับเก็บค่า Joint ปัจจุบัน
@@ -96,44 +102,21 @@ class MoveToNamedTargetActionServer(Node):
         goal_msg.request.max_velocity_scaling_factor = 0.5
         goal_msg.request.max_acceleration_scaling_factor = 0.5
         
-        # กำหนดค่า Joint สำหรับ Named Target ต่างๆ
+        # ดึงค่า Joint จาก SRDF Helper
+        vals = self.srdf_helper.get_pose('arm', target_name)
         
-        joint_constraints = []
-        
-        if target_name.lower() == "home":
-             # Define Home Pose (Standard OpenManipulator-P)
-             # J1=0, J2=-1.0, J3=0.3, J4=0.7, J5=0, palm=0
-             vals = {
-                'J1': 0.0, 
-                'J2': -1.0, 
-                'J3': 0.3, 
-                'J4': 0.7,
-                'J5': 0.0,
-                'palm_joint': 0.0
-             }
-             
-        elif target_name.lower() == "sleep":
-             # Folded Pose (ท่าพับเก็บ)
-             vals = {
-                'J1': 0.0, 
-                'J2': -1.57, 
-                'J3': 1.3, 
-                'J4': 0.2,
-                'J5': 0.0,
-                'palm_joint': 0.0
-             }
-             
-        else:
-             self.get_logger().warn(f"Unknown named target: {target_name}. Using Home.")
-             vals = {
-                'J1': 0.0, 
-                'J2': -1.0, 
-                'J3': 0.3, 
-                'J4': 0.7,
-                'J5': 0.0,
-                'palm_joint': 0.0
-             }
+        if vals is None:
+             # Fallback to Hardcoded Home if not found (เผื่อกรณีหาไม่เจอจริงๆ)
+             self.get_logger().warn(f"⚠️ Unknown named target in SRDF: '{target_name}'. Trying hardcoded fallback...")
+             if target_name.lower() == "home":
+                 vals = {'J1': 0.0, 'J2': -1.0, 'J3': 0.3, 'J4': 0.7, 'J5': 0.0, 'palm_joint': 0.0}
+             elif target_name.lower() == "sleep":
+                 vals = {'J1': 0.0, 'J2': -1.57, 'J3': 1.3, 'J4': 0.2, 'J5': 0.0, 'palm_joint': 0.0}
+             else:
+                 self.get_logger().error(f"❌ Target '{target_name}' not found in SRDF or Hardcoded.")
+                 return False
 
+        joint_constraints = []
         for joint, angle in vals.items():
             jc = JointConstraint()
             jc.joint_name = joint

@@ -12,6 +12,10 @@ from mani_p_actions.action import GripperControl
 from sensor_msgs.msg import JointState  # นำเข้า message types สำหรับ Joint State
 from tf2_ros import Buffer, TransformListener  # นำเข้าไลบรารีจัดการ TF
 
+# Import SceneHelper & SRDFHelper (นำเข้า Helper)
+from mani_p_task_scheduler.script.scene_helper import SceneHelper
+from mani_p_task_scheduler.script.srdf_helper import SRDFHelper
+
 class GripperActionServer(Node):
 
     def __init__(self):
@@ -32,7 +36,7 @@ class GripperActionServer(Node):
         self._move_group_client = ActionClient(self, MoveGroup, 'move_action', callback_group=self.cb_group)
         
         self.gripper_group_name = "gripper"  # ชื่อกลุ่ม Gripper
-        self.get_logger().info('✅ Gripper Action Server Ready (MoveIt Named Targets).')
+        self.get_logger().info('✅ Gripper Action Server Ready (SRDF Named Targets).')
         
         # TF Setup (ตั้งค่า TF)
         self.tf_buffer = Buffer()
@@ -41,6 +45,10 @@ class GripperActionServer(Node):
         # Joint State Subscription (รับค่า Joint State)
         self.current_joints = {}
         self.joint_sub = self.create_subscription(JointState, 'joint_states', self.joint_callback, 10)
+        
+        # Helpers
+        self.scene_helper = SceneHelper(self)
+        self.srdf_helper = SRDFHelper()
 
     def joint_callback(self, msg):
         # Callback สำหรับเก็บค่า Joint ปัจจุบัน
@@ -64,8 +72,29 @@ class GripperActionServer(Node):
     async def execute_callback(self, goal_handle):
         # Callback หลักเมื่อได้รับ Goal
         is_open = goal_handle.request.open
+        target_id = goal_handle.request.target_id # รับชื่อวัตถุจาก Goal
+        
+        # Default target_id if empty (เพื่อความเข้ากันได้กับโค้ดเก่า)
+        if not target_id:
+            target_id = "cube1"
+            
         target_name = "gripper_open" if is_open else "gripper_close"
-        self.get_logger().info(f"🖐️ Gripper Command: {target_name}")
+        self.get_logger().info(f"🖐️ Gripper Command: {target_name} (Target: {target_id})")
+        
+        # --- Handle Attached Collision Object (จัดการ Attached Object) ---
+        if not is_open:
+            # Closing Gripper -> Attach Object (ถ้าสั่งปิดมือ -> Attach วัตถุ)
+            finger_links = [
+                "finger_middle_l", "finger_middle_r", 
+                "finger_bottom_l", "finger_bottom_r", 
+                "finger_link_bl", "finger_link_br",
+                "palm_link"
+            ]
+            self.scene_helper.attach_box(object_id=target_id, link_name="palm_link", touch_links=finger_links)
+        else:
+            # Opening Gripper -> Detach Object (ถ้าสั่งเปิดมือ -> Detach วัตถุ)
+            self.scene_helper.detach_box(object_id=target_id, frame_id="Base_link")
+        # ----------------------------------------------------------------
         
         if not self._move_group_client.wait_for_server(timeout_sec=5.0):
             self.get_logger().error("MoveGroup Action Server not available")
@@ -78,29 +107,31 @@ class GripperActionServer(Node):
         goal_msg.request.num_planning_attempts = 10
         goal_msg.request.allowed_planning_time = 5.0
         
-        # Set Named Target (กำหนดเป้าหมายตามชื่อ)
-        # Note: MoveGroup.Goal doesn't have a direct 'named_target' field in the request root.
-        # (หมายเหตุ: MoveGroup.Goal ไม่มีฟิลด์ named_target โดยตรง)
+        # Get Joint Values from SRDF (ดึงค่า Joint จาก SRDF)
+        vals = self.srdf_helper.get_pose('gripper', target_name)
         
-        # Values from config/Manipulator_station_urdf_2.srdf (ค่าจากไฟล์ SRDF)
-        # gripper_open: finger_middle_joint_l = 0.45099
-        # gripper_close: finger_middle_joint_l = -1.1 (Modified for even tighter grip)
-        
-        target_joint_val = 0.45099 if is_open else -1.1
-        
+        if vals is None:
+             self.get_logger().warn(f"⚠️ Unknown named target in SRDF: '{target_name}'. Using Hardcoded Fallback.")
+             # Fallback
+             if is_open:
+                 vals = {'finger_middle_joint_l': 0.45099}
+             else:
+                 vals = {'finger_middle_joint_l': -1.1}
+
         from moveit_msgs.msg import Constraints, JointConstraint
         
         constraints = Constraints()
         constraints.name = target_name
         
-        jc = JointConstraint()
-        jc.joint_name = "finger_middle_joint_l" 
-        jc.position = target_joint_val
-        jc.tolerance_above = 0.01
-        jc.tolerance_below = 0.01
-        jc.weight = 1.0
-        
-        constraints.joint_constraints.append(jc)
+        for joint, angle in vals.items():
+            jc = JointConstraint()
+            jc.joint_name = joint
+            jc.position = angle
+            jc.tolerance_above = 0.01
+            jc.tolerance_below = 0.01
+            jc.weight = 1.0
+            constraints.joint_constraints.append(jc)
+            
         goal_msg.request.goal_constraints.append(constraints)
         
         send_future = self._move_group_client.send_goal_async(goal_msg)
@@ -125,10 +156,6 @@ class GripperActionServer(Node):
             return GripperControl.Result(success=True)
         else:
             self.get_logger().error(f"❌ MoveIt Error Code: {result.error_code.val}")
-            # Error Code 1 = SUCCESS
-            # Error Code -1 = PLANNING_FAILED
-            # Error Code -4 = SOLUTION_IS_INVALID
-            # Error Code -21 = NO_IK_SOLUTION
             goal_handle.abort()
             return GripperControl.Result(success=False)
 

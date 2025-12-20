@@ -1,5 +1,6 @@
 # Goal
 bool open # true = open, false = close
+string target_id # Name of the object to attach/detach (e.g., "cube1")
 ---
 # Result
 bool success

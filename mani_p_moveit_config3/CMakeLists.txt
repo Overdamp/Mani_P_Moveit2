@@ -5,26 +5,9 @@ find_package(ament_cmake REQUIRED)
 
 ament_package()
 
-install(PROGRAMS
-  script/spawn_shelf_dynamic.py
-  script/smart_soft_snap.py
-  script/spawn_cubes.py
-  script/test_gripper_to_tag.py
-  script/approach_tag_smart.py
-  script/cartesian_push.py
-  script/visual_servo_align.py
-  script/coarse2fine_task.py
-  script/adjust_level.py
-  script/fisheye_camera.py
-  script/adjust_tcp.py
-  script/tag_leveler.py
-  DESTINATION lib/${PROJECT_NAME}
-)
-
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/launch")
   install(
-    DIRECTORY 
-    launch 
+    DIRECTORY launch
     DESTINATION share/${PROJECT_NAME}
     PATTERN "setup_assistant.launch" EXCLUDE)
 endif()
