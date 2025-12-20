@@ -70,149 +70,159 @@ class MoveLinearActionServer(Node):
     async def execute_callback(self, goal_handle):
         # Callback หลักเมื่อได้รับ Goal
         direction = goal_handle.request.direction.lower() # รับค่าทิศทาง (แปลงเป็นตัวพิมพ์เล็ก)
-        distance = goal_handle.request.distance # รับค่าระยะทาง
+        total_distance = goal_handle.request.distance # รับค่าระยะทางรวม
         
-        self.get_logger().info(f"📏 Moving '{direction}' by {distance}m")
+        self.get_logger().info(f"📏 Moving '{direction}' by {total_distance}m (Incremental)")
+        
+        # กำหนดขนาดก้าวเดินย่อย (Step Size) เพื่อลดอาการตกท้องช้าง
+        STEP_SIZE = 0.01 # 1 cm per step (Increased from 2cm)
+        
+        # คำนวณจำนวนก้าว
+        import math
+        num_steps = int(math.ceil(total_distance / STEP_SIZE))
+        
+        current_distance_moved = 0.0
+        
+        for i in range(num_steps):
+            # ตรวจสอบการยกเลิก
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                return MoveLinear.Result(success=False)
+                
+            # คำนวณระยะทางที่จะเดินในรอบนี้
+            remaining = total_distance - current_distance_moved
+            step_dist = min(STEP_SIZE, remaining)
+            
+            if step_dist <= 0.001: break # ถ้าน้อยมากก็หยุด
+            
+            self.get_logger().info(f"   ➡️ Step {i+1}/{num_steps}: Moving {step_dist:.3f}m")
+            
+            # Execute Small Step with Retry (ลองใหม่ได้ 3 ครั้ง)
+            success = False
+            for attempt in range(3):
+                success = await self.execute_linear_step(direction, step_dist, goal_handle)
+                if success:
+                    break
+                self.get_logger().warn(f"      ⚠️ Attempt {attempt+1} failed. Retrying...")
+                time.sleep(1.0) # Wait longer before retry
+            
+            if not success:
+                self.get_logger().error(f"❌ Failed at step {i+1} after 3 attempts")
+                goal_handle.abort()
+                return MoveLinear.Result(success=False)
+                
+            current_distance_moved += step_dist
+            time.sleep(2.0) # พักนิดนึงเพื่อให้หุ่นนิ่งขึ้น
+            
+        goal_handle.succeed()
+        return MoveLinear.Result(success=True)
+
+    async def execute_linear_step(self, direction, distance, goal_handle):
+        # ฟังก์ชันย่อยสำหรับเดิน 1 ก้าวเล็กๆ
         
         # 1. Get Current Pose (ดึงตำแหน่งปัจจุบัน)
         try:
             t = self.tf_buffer.lookup_transform(
-                self.base_frame, self.ee_link, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=2.0))
+                self.base_frame, self.ee_link, rclpy.time.Time(), timeout=rclpy.duration.Duration(seconds=1.0))
         except Exception as e:
             self.get_logger().error(f"❌ Could not get current pose: {e}")
-            goal_handle.abort()
-            return MoveLinear.Result(success=False)
+            return False
 
         # 2. Calculate Target Pose (คำนวณตำแหน่งเป้าหมาย)
-        # เตรียมตัวแปรสำหรับ Delta (ส่วนต่างตำแหน่ง)
         dx, dy, dz = 0.0, 0.0, 0.0
         
-        # Logic การคำนวณทิศทาง
         if direction == "forward":
-            # Forward: เคลื่อนที่ไปข้างหน้าตามแนวแกน Z ของ TCP (มือจับ)
-            # ต้องหมุน Vector (0,0,distance) จาก TCP frame ไปยัง Base frame
             qx = t.transform.rotation.x
             qy = t.transform.rotation.y
             qz = t.transform.rotation.z
             qw = t.transform.rotation.w
-            
-            # สูตรหมุน Vector (0,0,1) ด้วย Quaternion
-            # dx = (2xz + 2yw) * dist
-            # dy = (2yz - 2xw) * dist
-            # dz = (1 - 2xx - 2yy) * dist
             dx = (2*qx*qz + 2*qy*qw) * distance
             dy = (2*qy*qz - 2*qx*qw) * distance
             dz = (1 - 2*qx*qx - 2*qy*qy) * distance
             
         elif direction == "backward":
-            # Backward: เคลื่อนที่ถอยหลังตามแนวแกน Z ของ TCP (ตรงข้าม Forward)
             qx = t.transform.rotation.x
             qy = t.transform.rotation.y
             qz = t.transform.rotation.z
             qw = t.transform.rotation.w
-            
-            # เหมือน Forward แต่คูณ -distance
             dist_neg = -distance
             dx = (2*qx*qz + 2*qy*qw) * dist_neg
             dy = (2*qy*qz - 2*qx*qw) * dist_neg
             dz = (1 - 2*qx*qx - 2*qy*qy) * dist_neg
             
         elif direction == "up":
-            # Up: เคลื่อนที่ขึ้นตามแนวแกน Z ของ Base (World Z)
-            dx = 0.0
-            dy = 0.0
             dz = distance
-            
         elif direction == "down":
-            # Down: เคลื่อนที่ลงตามแนวแกน Z ของ Base (World Z)
-            dx = 0.0
-            dy = 0.0
             dz = -distance
-            
         elif direction == "left":
-            # Left: เคลื่อนที่ซ้ายตามแนวแกน Y ของ Base (World Y)
-            dx = 0.0
             dy = distance
-            dz = 0.0
-            
         elif direction == "right":
-            # Right: เคลื่อนที่ขวาตามแนวแกน Y ของ Base (World Y)
-            dx = 0.0
             dy = -distance
-            dz = 0.0
-            
         else:
-            self.get_logger().error(f"❌ Unknown direction: {direction}")
-            goal_handle.abort()
-            return MoveLinear.Result(success=False)
+            return False
 
-        # สร้าง Target Pose
         target_pose = Pose()
         target_pose.position.x = t.transform.translation.x + dx
         target_pose.position.y = t.transform.translation.y + dy
         target_pose.position.z = t.transform.translation.z + dz
-        target_pose.orientation = t.transform.rotation # รักษา Orientation เดิม
+        target_pose.orientation = t.transform.rotation 
         
-        # 3. Compute Cartesian Path (วางแผนเส้นทางแบบ Cartesian)
+        # 3. Compute Cartesian Path
         req = GetCartesianPath.Request()
         req.header.frame_id = self.base_frame
         req.header.stamp = self.get_clock().now().to_msg()
         req.group_name = self.arm_group_name
         req.link_name = self.ee_link
         req.waypoints = [target_pose]
-        req.max_step = 0.01  # ความละเอียดของ Step (1cm)
-        req.jump_threshold = 0.0 # ป้องกันการกระโดดของ Joint
-        req.avoid_collisions = True # หลบสิ่งกีดขวาง
+        req.max_step = 0.01 
+        req.jump_threshold = 0.0 
+        req.avoid_collisions = True 
         
         future = self._cartesian_client.call_async(req)
+        # Wait for result (รอผลลัพธ์แบบ Async ใน Loop)
         while not future.done():
-            if goal_handle.is_cancel_requested:
-                goal_handle.canceled()
-                return MoveLinear.Result(success=False)
-            time.sleep(0.01)
+             if goal_handle.is_cancel_requested: return False
+             time.sleep(0.01)
+             
         response = future.result()
         
         if response.error_code.val != 1:
-            self.get_logger().error(f"❌ Cartesian Planning Failed: {response.error_code.val}")
-            goal_handle.abort()
-            return MoveLinear.Result(success=False)
+            self.get_logger().error(f"Cartesian Planning Failed: {response.error_code.val}")
+            return False
+            
+        # Log number of points
+        num_points = len(response.solution.joint_trajectory.points)
+        # self.get_logger().info(f"      📝 Planned Path with {num_points} points")
 
-        # 4. Execute (สั่งเคลื่อนที่)
+        # 4. Execute
         goal_msg = ExecuteTrajectory.Goal()
         goal_msg.trajectory = response.solution
         
         send_future = self._execute_client.send_goal_async(goal_msg)
         while not send_future.done():
-            if goal_handle.is_cancel_requested:
-                goal_handle.canceled()
-                return MoveLinear.Result(success=False)
-            time.sleep(0.01)
+             if goal_handle.is_cancel_requested: return False
+             time.sleep(0.01)
+             
         goal_handle_exec = send_future.result()
         
         if not goal_handle_exec.accepted:
-            goal_handle.abort()
-            return MoveLinear.Result(success=False)
+            self.get_logger().error("Goal rejected by MoveIt server")
+            return False
 
         res_future = goal_handle_exec.get_result_async()
         while not res_future.done():
             if goal_handle.is_cancel_requested:
-                self.get_logger().info('Cancellation requested. Cancelling trajectory...')
                 cancel_future = goal_handle_exec.cancel_goal_async()
-                while not cancel_future.done():
-                    time.sleep(0.01)
-                goal_handle.canceled()
-                return MoveLinear.Result(success=False)
+                while not cancel_future.done(): time.sleep(0.01)
+                return False
+            # self.log_status() # ไม่ต้อง Log ถี่เกินไป
+            time.sleep(0.1)
             
-            self.log_status()
-            time.sleep(0.5)
         result = res_future.result().result
-        
-        if result.error_code.val == 1:
-            goal_handle.succeed()
-            return MoveLinear.Result(success=True)
-        else:
-            goal_handle.abort()
-            return MoveLinear.Result(success=False)
+        if result.error_code.val != 1:
+            self.get_logger().error(f"❌ Execution Failed with Error Code: {result.error_code.val}")
+            
+        return result.error_code.val == 1
 
 def main(args=None):
     rclpy.init(args=args)
