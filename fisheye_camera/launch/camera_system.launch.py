@@ -3,12 +3,51 @@ from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.substitutions import FindPackageShare
+import subprocess
+import re
+import os
 
+def find_camera_device_id(target_name_pattern="USB Camera"):
+    """
+    Finds the video device ID (e.g., '0', '2') or path (e.g., '/dev/fisheye_camera').
+    Prioritizes UDEV symlink '/dev/fisheye_camera'.
+    """
+    # 1. Check for UDEV symlink
+    if os.path.exists('/dev/fisheye_camera'):
+        return '/dev/fisheye_camera'
+
+    # 2. Fallback to v4l2-ctl search
+    try:
+        # Run v4l2-ctl --list-devices
+        result = subprocess.run(['v4l2-ctl', '--list-devices'], capture_output=True, text=True)
+        output = result.stdout
+        
+        lines = output.split('\n')
+        current_camera_name = ""
+        
+        for line in lines:
+            if not line.startswith('\t') and line.strip():
+                current_camera_name = line.strip()
+            elif line.startswith('\t') and target_name_pattern in current_camera_name:
+                device_path = line.strip()
+                # Extract number from /dev/videoX
+                match = re.search(r'/dev/video(\d+)', device_path)
+                if match:
+                    return match.group(1)
+                    
+    except Exception as e:
+        print(f"Error finding camera: {e}")
+        
+    return '3' # Default fallback
 def generate_launch_description():
     pkg_share = FindPackageShare('fisheye_camera')
     
     # Arguments
-    device_id_arg = DeclareLaunchArgument('device_id', default_value='3')
+    # Arguments
+    # Auto-detect device ID, default to 3 if not found
+    default_device_id = find_camera_device_id("USB 2.0 Camera")
+    device_id_arg = DeclareLaunchArgument('device_id', default_value=default_device_id)
     width_arg = DeclareLaunchArgument('width', default_value='640')
     height_arg = DeclareLaunchArgument('height', default_value='480')
     fps_arg = DeclareLaunchArgument('fps', default_value='15')
