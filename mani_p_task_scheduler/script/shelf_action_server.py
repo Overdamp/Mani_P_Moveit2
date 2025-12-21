@@ -23,7 +23,7 @@ class ShelfCalculator:
         
         # Configuration (การตั้งค่า)
         self.ref_tag = "tag11" # Top Center Tag (Tag อ้างอิงตรงกลางบน)
-        self.row_spacing = 0.28  # 28cm spacing (ระยะห่างระหว่างแถว)
+        self.row_spacing = 0.19  # 28cm spacing (ระยะห่างระหว่างแถว)
         self.col_spacing = 0.23  # 23cm spacing (ระยะห่างระหว่างคอลัมน์)
         self.standoff_dist = 0.314 # Measured Z (ระยะห่างแนวแกน Z ที่วัดได้)
         
@@ -31,7 +31,7 @@ class ShelfCalculator:
         # Updated from User Calibration (2025-12-13 - Evening)
         self.base_x_offset = -0.037
         self.base_y_offset = -0.428
-        self.standoff_dist = 0.15 # Z-offset (In/Out) - User updated to 0.15 (ระยะห่างแนวแกน Z ที่ผู้ใช้อัปเดต)
+        self.standoff_dist = 0.10 # Z-offset (In/Out) - User updated to 0.15 (ระยะห่างแนวแกน Z ที่ผู้ใช้อัปเดต)
 
     def get_target_pose(self, row, col, timeout_sec=5.0):
         """

@@ -8,39 +8,39 @@ from launch_ros.substitutions import FindPackageShare
 import subprocess
 import re
 
-def find_camera_device_id(target_name_pattern="USB Camera"):
-    """
-    Finds the video device ID (e.g., '0', '2') for a camera matching the target_name_pattern.
-    Defaults to '0' if not found.
-    """
-    try:
-        # Run v4l2-ctl --list-devices
-        result = subprocess.run(['v4l2-ctl', '--list-devices'], capture_output=True, text=True)
-        output = result.stdout
+# def find_camera_device_id(target_name_pattern="USB Camera"):
+#     """
+#     Finds the video device ID (e.g., '0', '2') for a camera matching the target_name_pattern.
+#     Defaults to '0' if not found.
+#     """
+#     try:
+#         # Run v4l2-ctl --list-devices
+#         result = subprocess.run(['v4l2-ctl', '--list-devices'], capture_output=True, text=True)
+#         output = result.stdout
         
-        # Parse output
-        # Example output:
-        # USB Camera: USB Camera (usb-0000:00:14.0-1):
-        #         /dev/video0
-        #         /dev/video1
+#         # Parse output
+#         # Example output:
+#         # USB Camera: USB Camera (usb-0000:00:14.0-1):
+#         #         /dev/video0
+#         #         /dev/video1
         
-        lines = output.split('\n')
-        current_camera_name = ""
+#         lines = output.split('\n')
+#         current_camera_name = ""
         
-        for line in lines:
-            if not line.startswith('\t') and line.strip():
-                current_camera_name = line.strip()
-            elif line.startswith('\t') and target_name_pattern in current_camera_name:
-                device_path = line.strip()
-                # Extract number from /dev/videoX
-                match = re.search(r'/dev/video(\d+)', device_path)
-                if match:
-                    return match.group(1)
+#         for line in lines:
+#             if not line.startswith('\t') and line.strip():
+#                 current_camera_name = line.strip()
+#             elif line.startswith('\t') and target_name_pattern in current_camera_name:
+#                 device_path = line.strip()
+#                 # Extract number from /dev/videoX
+#                 match = re.search(r'/dev/video(\d+)', device_path)
+#                 if match:
+#                     return match.group(1)
                     
-    except Exception as e:
-        print(f"Error finding camera: {e}")
+#     except Exception as e:
+#         print(f"Error finding camera: {e}")
         
-    return '' # Default fallback
+#     return '' # Default fallback
 def generate_launch_description():
     return LaunchDescription([
         # 1. ZED Camera (Start Immediately)
@@ -121,21 +121,21 @@ def generate_launch_description():
         ),
 
         # 5. fisheye_camera (Wait 5s for Detections)
-        TimerAction(
-            period=5.0,
-            actions=[
-                IncludeLaunchDescription(
-                    PythonLaunchDescriptionSource(
-                        PathJoinSubstitution([
-                            FindPackageShare('fisheye_camera'),
-                            'launch',
-                            'camera_system.launch.py'
-                        ])
-                    ),
-                    launch_arguments={
-                        'device_id': find_camera_device_id("USB 2.0 Camera") # Change "USB 2.0 Camera" to your camera name
-                    }.items()
-                )
-            ]
-        ),
+        # TimerAction(
+        #     period=5.0,
+        #     actions=[
+        #         IncludeLaunchDescription(
+        #             PythonLaunchDescriptionSource(
+        #                 PathJoinSubstitution([
+        #                     FindPackageShare('fisheye_camera'),
+        #                     'launch',
+        #                     'camera_system.launch.py'
+        #                 ])
+        #             ),
+        #             launch_arguments={
+        #                 'device_id': find_camera_device_id("USB 2.0 Camera") # Change "USB 2.0 Camera" to your camera name
+        #             }.items()
+        #         )
+        #     ]
+        # ),
     ])
