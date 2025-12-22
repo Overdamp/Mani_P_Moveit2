@@ -121,21 +121,18 @@ def generate_launch_description():
         ),
 
         # 5. fisheye_camera (Wait 5s for Detections)
-        # TimerAction(
-        #     period=5.0,
-        #     actions=[
-        #         IncludeLaunchDescription(
-        #             PythonLaunchDescriptionSource(
-        #                 PathJoinSubstitution([
-        #                     FindPackageShare('fisheye_camera'),
-        #                     'launch',
-        #                     'camera_system.launch.py'
-        #                 ])
-        #             ),
-        #             launch_arguments={
-        #                 'device_id': find_camera_device_id("USB 2.0 Camera") # Change "USB 2.0 Camera" to your camera name
-        #             }.items()
-        #         )
-        #     ]
-        # ),
+        TimerAction(
+            period=5.0,
+            actions=[
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(
+                        PathJoinSubstitution([
+                            FindPackageShare('fisheye_camera'),
+                            'launch',
+                            'camera_system.launch.py'
+                        ])
+                    )
+                )
+            ]
+        ),
     ])

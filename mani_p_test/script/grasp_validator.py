@@ -5,6 +5,8 @@ import rclpy
 # นำเข้าไลบรารี rclpy สำหรับการเขียน ROS 2 Node
 from rclpy.node import Node
 # นำเข้าคลาส Node เพื่อสร้าง ROS 2 Node
+from rclpy.action import ActionClient
+# นำเข้า ActionClient สำหรับเรียกใช้ Action Server
 from tf2_ros import Buffer, TransformListener
 # นำเข้า Buffer และ TransformListener สำหรับการจัดการ TF (Transform)
 from geometry_msgs.msg import TransformStamped
@@ -19,6 +21,9 @@ import os
 # นำเข้าไลบรารี os สำหรับจัดการไฟล์และ path
 from datetime import datetime
 # นำเข้า datetime เพื่อดึงเวลาปัจจุบัน
+
+from mani_p_actions.action import MoveToShelf
+# นำเข้า Action Definition
 
 class GraspValidator(Node):
     # สร้างคลาส GraspValidator โดยสืบทอดมาจาก Node ของ ROS 2
@@ -39,14 +44,13 @@ class GraspValidator(Node):
 
         self.csv_filename = 'grasp_accuracy_log.csv'
         # กำหนดชื่อไฟล์ CSV ที่จะบันทึกผลลัพธ์
-        self.ideal_grasp_depth = 0.05
-        # กำหนดค่าความลึกที่เหมาะสมในการจับ (Ideal Grasp Depth) เป็น 0.05 เมตร (5 ซม.)
-        # หมายความว่า TCP ควรจะอยู่ลึกเข้าไปใน Tag 5 ซม. ไม่ใช่แค่แตะผิวหน้า
+        
+        # Updated to 0.10m to match Shelf Action Server Standoff
+        self.ideal_grasp_depth = 0.10
+        # กำหนดค่าความลึกที่เหมาะสมในการจับ (Ideal Grasp Depth)
+        # หมายความว่า TCP ควรจะอยู่ห่างจาก Tag 10 ซม. (Standoff)
 
         # สร้าง Dictionary สำหรับจับคู่ (Row, Col) ไปยัง Tag ID
-        # แถว 1 (บนสุด) -> Tags 1, 2, 3
-        # แถว 2 (กลาง) -> Tags 4, 5, 6
-        # แถว 3 (ล่างสุด) -> Tags 7, 8, 9
         self.shelf_map = {
             (1, 1): 1, (1, 2): 2, (1, 3): 3,
             (2, 1): 4, (2, 2): 5, (2, 3): 6,
@@ -54,6 +58,9 @@ class GraspValidator(Node):
         }
         # จบการสร้าง Dictionary
 
+        # Action Client Setup
+        self._action_client = ActionClient(self, MoveToShelf, 'move_to_shelf')
+        
         self.init_csv()
         # เรียกฟังก์ชันเพื่อเตรียมไฟล์ CSV (สร้างหัวตารางถ้ายังไม่มีไฟล์)
 
@@ -149,7 +156,7 @@ class GraspValidator(Node):
             
             # Error Z คือระยะห่างในแนวแกน Z (Depth) ลบด้วย Ideal Depth
             # เพราะเราต้องการให้ TCP จมเข้าไปใน Tag ตามระยะ Ideal
-            # ถ้า TCP อยู่ที่ Z=0.05 (พอดีเป๊ะ) -> Error = 0.05 - 0.05 = 0
+            # ถ้า TCP อยู่ที่ Z=0.10 (พอดีเป๊ะ) -> Error = 0.10 - 0.10 = 0
             error_z = measured_z - self.ideal_grasp_depth
 
             # คำนวณ Euclidean Error (ระยะห่างรวมแบบ 3 มิติ)
@@ -165,8 +172,66 @@ class GraspValidator(Node):
             return None
             # คืนค่า None เพื่อบอกว่าวัดค่าไม่ได้
 
+    def send_goal(self, row, col):
+        # ฟังก์ชันส่ง Goal ไปยัง Action Server
+        self.get_logger().info(f'Waiting for action server...')
+        if not self._action_client.wait_for_server(timeout_sec=5.0):
+            self.get_logger().error('Action server not available!')
+            return False
+
+        goal_msg = MoveToShelf.Goal()
+        goal_msg.row = row
+        goal_msg.col = col
+        
+        self.get_logger().info(f'Sending goal: Row={row}, Col={col}')
+        
+        # ส่ง Goal แบบ Synchronous (รอจนกว่าจะเสร็จใน Loop นี้)
+        # หมายเหตุ: ใน ROS 2 การเรียกแบบ sync ใน spin thread เดียวกันอาจ deadlock ได้
+        # แต่ในที่นี้เราแยก thread spin ไว้แล้ว หรือเราจะใช้ send_goal_async แล้วรอ future ก็ได้
+        
+        send_goal_future = self._action_client.send_goal_async(goal_msg)
+        
+        # รอให้ Server รับ Goal
+        while not send_goal_future.done():
+            time.sleep(0.1)
+            
+        goal_handle = send_goal_future.result()
+        
+        if not goal_handle.accepted:
+            self.get_logger().info('Goal rejected :(')
+            return False
+
+        self.get_logger().info('Goal accepted, moving...')
+        
+        get_result_future = goal_handle.get_result_async()
+        
+        # รอจนกว่าจะทำงานเสร็จ
+        while not get_result_future.done():
+            time.sleep(0.1)
+            
+        result = get_result_future.result().result
+        
+        if result.success:
+            self.get_logger().info(f'Movement Success: {result.message}')
+            return True
+        else:
+            self.get_logger().error(f'Movement Failed: {result.message}')
+            return False
+
     def run_loop(self):
         # ฟังก์ชันหลักในการวนลูปทำงาน
+        print("\nSelect Mode:")
+        print("1. Auto Move & Measure (Robot will move!)")
+        print("2. Measure Only (Manual Jog)")
+        mode_in = input("Select (1/2): ")
+        
+        auto_move = (mode_in.strip() == '1')
+        
+        if auto_move:
+            print(">>> MODE: AUTO MOVE & MEASURE <<<")
+        else:
+            print(">>> MODE: MEASURE ONLY <<<")
+
         while rclpy.ok():
             # วนลูปตราบเท่าที่ ROS ยังทำงานอยู่
             row, col = self.get_user_input()
@@ -184,8 +249,18 @@ class GraspValidator(Node):
             print(f"Target: Row {row}, Col {col} -> Tag ID: {tag_id}")
             # แสดงข้อมูลเป้าหมาย
 
-            input(f"Press Enter when robot is at Slot ({row}, {col})...")
-            # รอให้ผู้ใช้กด Enter เมื่อหุ่นยนต์เคลื่อนที่ไปถึงจุดแล้ว
+            if auto_move:
+                print("Moving robot...")
+                success = self.send_goal(row, col)
+                if not success:
+                    print("Skipping measurement due to movement failure.")
+                    continue
+                
+                # รอสักนิดให้หุ่นนิ่งสนิท
+                time.sleep(1.0)
+            else:
+                input(f"Press Enter when robot is at Slot ({row}, {col})...")
+                # รอให้ผู้ใช้กด Enter เมื่อหุ่นยนต์เคลื่อนที่ไปถึงจุดแล้ว
 
             print("Measuring...")
             # แสดงข้อความกำลังวัดค่า
@@ -212,7 +287,7 @@ class GraspValidator(Node):
                     # เปิดไฟล์ CSV ในโหมดเพิ่มข้อมูลต่อท้าย ('a')
                     writer = csv.writer(file)
                     # สร้าง object writer
-                    writer.writerow([timestamp, row, col, tag_id, f"{err_x:.4f}", f"{err_y:.4f}", f"{err_z:.4f}", f"{euc_err:.4f}", ""])
+                    writer.writerow([timestamp, row, col, tag_id, f"{err_x:.4f}", f"{err_y:.4f}", f"{err_z:.4f}", f"{euc_err:.4f}", "Auto" if auto_move else "Manual"])
                     # เขียนข้อมูลลงไปในแถวใหม่
                 
                 print(f"Data saved to {self.csv_filename}")
@@ -229,15 +304,7 @@ def main(args=None):
     node = GraspValidator()
     # สร้าง Node GraspValidator
     
-    # เนื่องจากเราใช้ input() ซึ่งเป็น Blocking I/O เราไม่สามารถใช้ rclpy.spin() แบบปกติได้ง่ายๆ
-    # แต่ในที่นี้เราใช้ TF Listener ซึ่งทำงานอยู่เบื้องหลังใน Thread แยกของ Executor ได้
-    # หรือเราจะให้ Loop หลักเป็นตัวคุมก็ได้
-    
-    # เพื่อให้ TF Listener ทำงานได้ เราต้อง spin ใน background หรือ spin_once ในลูป
-    # แต่วิธีที่ง่ายกว่าสำหรับ Script แบบ Interactive คือใช้ MultiThreadedExecutor หรือแยก Thread
-    # แต่ใน Python script ง่ายๆ เราสามารถใช้ rclpy.spin_once() ในจังหวะที่รอได้
-    
-    # อย่างไรก็ตาม เพื่อความง่ายและชัวร์ เราจะแยก Thread สำหรับ spin ROS
+    # แยก Thread สำหรับ spin ROS
     import threading
     
     executor = rclpy.executors.MultiThreadedExecutor()
