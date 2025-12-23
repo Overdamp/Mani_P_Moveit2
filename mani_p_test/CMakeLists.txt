@@ -16,6 +16,7 @@ install(PROGRAMS
   script/smart_filter_node.py
   script/tf_recorder.py
   script/calibration_tool.py
+  script/grasp_validator.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

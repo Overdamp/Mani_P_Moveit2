@@ -14,6 +14,6 @@ apriltag_node:
       decode_sharpening: 0.25
 
     tag:
-      ids: [1, 2, 3, 6,11]                  # ใส่ ID ที่คุณมีจริง
-      sizes: [0.04, 0.04, 0.04, 0.04, 0.10]       # 4 cm (ปรับตาม tag จริงของคุณ)
-      frames: ["tag1", "tag2", "tag3", "tag6", "tag11"]  # กำหนดชื่อ frame ตาม ID
+      ids: [1, 2, 3, 4, 5, 6, 7, 8, 9, 11]
+      sizes: [0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.10]
+      frames: ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8", "tag9", "tag11"]

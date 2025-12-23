@@ -24,7 +24,7 @@ class ShelfCalculator:
         # Configuration (การตั้งค่า)
         self.ref_tag = "tag11" # Top Center Tag (Tag อ้างอิงตรงกลางบน)
         self.row_spacing = 0.23  # 23cm spacing (ระยะห่างระหว่างแถว)
-        self.col_spacing = 0.23  # 23cm spacing (ระยะห่างระหว่างคอลัมน์)
+        self.col_spacing = 0.20  # 20cm spacing (ระยะห่างระหว่างคอลัมน์)
         self.standoff_dist = 0.314 # Measured Z (ระยะห่างแนวแกน Z ที่วัดได้)
         
         # Calibrated Base Offsets for Row 2, Col 2 (Middle Center) (ค่า Offset ฐานที่ Calibrate แล้วสำหรับแถว 2 คอลัมน์ 2)

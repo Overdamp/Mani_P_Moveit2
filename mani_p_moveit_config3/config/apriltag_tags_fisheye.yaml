@@ -1,4 +1,4 @@
-apriltag_node:
+apriltag_node_fisheye:
   ros__parameters:
     image_transport: "raw"            # Fisheye uses raw (or whatever image_proc outputs)
 

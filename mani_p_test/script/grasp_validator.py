@@ -11,6 +11,8 @@ from tf2_ros import Buffer, TransformListener
 # นำเข้า Buffer และ TransformListener สำหรับการจัดการ TF (Transform)
 from geometry_msgs.msg import TransformStamped
 # นำเข้า message type TransformStamped
+from tf2_msgs.msg import TFMessage
+# นำเข้า TFMessage สำหรับ debug
 import csv
 # นำเข้าไลบรารี csv สำหรับการบันทึกไฟล์ CSV
 import math
@@ -37,9 +39,14 @@ class GraspValidator(Node):
         # 🛠️ การตั้งค่า (Configuration) 🛠️
         # ==========================================
         
+        # TF Buffer & Listener
         self.tf_buffer = Buffer()
-        # สร้าง Buffer สำหรับเก็บข้อมูล TF
         self.tf_listener = TransformListener(self.tf_buffer, self)
+        
+        # Debug Subscription (Disabled for production)
+        # self.create_subscription(TFMessage, '/tf', self.tf_callback, 10)
+        # self.create_timer(1.0, self.debug_timer_callback)
+        
         # สร้าง Listener เพื่อรอรับข้อมูล TF และเก็บลง Buffer
 
         self.csv_filename = 'grasp_accuracy_log.csv'
@@ -69,8 +76,15 @@ class GraspValidator(Node):
         self.get_logger().info(f'Logging to: {os.path.abspath(self.csv_filename)}')
         # แสดง path ของไฟล์ CSV ที่จะบันทึก
 
-        self.run_loop()
+        # self.run_loop() # REMOVED: Called in main thread logic
+        pass
         # เรียกฟังก์ชันหลักในการทำงานวนลูปรับค่าจากผู้ใช้
+
+    # def tf_callback(self, msg):
+    #     pass
+
+    # def debug_timer_callback(self):
+    #     pass
 
     def init_csv(self):
         # ฟังก์ชันสำหรับเตรียมไฟล์ CSV
@@ -135,11 +149,13 @@ class GraspValidator(Node):
         try:
             # พยายามดึงค่า Transform
             # เราต้องการหาตำแหน่งของ tcp_link เทียบกับ tag (tag เป็นจุดอ้างอิง 0,0,0)
-            # ดังนั้น from_frame = tag, to_frame = tcp_link
+            # ดังนั้น from_frame = tag, to_frame
+            # Wait up to 2.0 seconds for the transform to become available
             t = self.tf_buffer.lookup_transform(
                 target_frame, # Frame อ้างอิง (Target Tag)
                 source_frame, # Frame ที่ต้องการรู้ตำแหน่ง (TCP)
-                rclpy.time.Time() # เวลาปัจจุบัน (ล่าสุดที่มี)
+                rclpy.time.Time(), # เวลาปัจจุบัน (ล่าสุดที่มี)
+                timeout=rclpy.duration.Duration(seconds=5.0) # กำหนด timeout
             )
             
             # ดึงค่าตำแหน่ง X, Y, Z ที่วัดได้
@@ -168,9 +184,10 @@ class GraspValidator(Node):
         except Exception as e:
             # ดักจับ Error กรณีหา TF ไม่เจอ
             self.get_logger().warn(f"Could not get transform from {target_frame} to {source_frame}: {e}")
+            self.get_logger().warn("Available frames: " + self.tf_buffer.all_frames_as_yaml())
             # แสดงข้อความแจ้งเตือน
-            return None
-            # คืนค่า None เพื่อบอกว่าวัดค่าไม่ได้
+            return None, None, None, None
+            # คืนค่า None, None, None, None เพื่อบอกว่าวัดค่าไม่ได้
 
     def send_goal(self, row, col):
         # ฟังก์ชันส่ง Goal ไปยัง Action Server
@@ -253,12 +270,14 @@ class GraspValidator(Node):
                 print("Moving robot...")
                 success = self.send_goal(row, col)
                 if not success:
-                    print("Skipping measurement due to movement failure.")
+                    print("Auto Move Failed!")
                     continue
+                print("Auto Move Complete. Stabilizing...")
+                time.sleep(3.0) # Wait for robot to settle
                 
-                # รอสักนิดให้หุ่นนิ่งสนิท
-                time.sleep(1.0)
-            else:
+                # Manual confirmation to ensure robot is absolutely still
+                input(">>> Robot Stopped? Press Enter to Measure... <<<")
+            else:    
                 input(f"Press Enter when robot is at Slot ({row}, {col})...")
                 # รอให้ผู้ใช้กด Enter เมื่อหุ่นยนต์เคลื่อนที่ไปถึงจุดแล้ว
 
@@ -266,15 +285,9 @@ class GraspValidator(Node):
             # แสดงข้อความกำลังวัดค่า
             
             # ลองวัดค่า (Retry ได้ถ้าไม่เจอ)
-            result = self.measure_error(tag_id)
+            err_x, err_y, err_z, euc_err = self.measure_error(tag_id)
             
-            if result:
-                # ถ้าวัดค่าสำเร็จ
-                err_x, err_y, err_z, euc_err = result
-                # แตกค่าผลลัพธ์ออกมาเก็บในตัวแปร
-                
-                print(f"Result for Tag {tag_id}:")
-                # แสดงผลลัพธ์
+            if err_x is not None:
                 print(f"  Error X: {err_x:.4f} m")
                 print(f"  Error Y: {err_y:.4f} m")
                 print(f"  Error Z: {err_z:.4f} m")
@@ -307,21 +320,14 @@ def main(args=None):
     # แยก Thread สำหรับ spin ROS
     import threading
     
-    executor = rclpy.executors.MultiThreadedExecutor()
-    # สร้าง Executor แบบ Multi-thread
-    executor.add_node(node)
-    # เพิ่ม Node เข้าไปใน Executor
-    
-    spin_thread = threading.Thread(target=executor.spin, daemon=True)
-    # สร้าง Thread ใหม่เพื่อรัน executor.spin()
-    spin_thread.start()
-    # เริ่มต้น Thread
+    # Run user input loop in a separate thread
+    input_thread = threading.Thread(target=node.run_loop, daemon=True)
+    input_thread.start()
     
     try:
-        # รอให้ Thread ทำงานไปเรื่อยๆ (Main thread จะติดอยู่ที่ run_loop ของ node)
-        spin_thread.join()
+        # Spin ROS in the main thread
+        rclpy.spin(node)
     except KeyboardInterrupt:
-        # ถ้ากด Ctrl+C
         pass
     finally:
         node.destroy_node()

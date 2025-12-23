@@ -26,6 +26,7 @@ install(PROGRAMS
   script/shelf_action_server.py
   script/debug_shelf_alignment.py
   script/move_to_named_target_action_server.py
+  script/pick_action_server.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

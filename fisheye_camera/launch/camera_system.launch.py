@@ -105,10 +105,10 @@ def generate_launch_description():
         Node(
             package='apriltag_ros',
             executable='apriltag_node',
-            name='apriltag_node',
+            name='apriltag_node_fisheye',
             output='screen',
             remappings=[
-                ('image_rect', '/fisheye_camera/image_raw'),
+                ('image_rect', '/image_rect'),
                 ('camera_info', '/fisheye_camera/camera_info')
             ],
             parameters=[
