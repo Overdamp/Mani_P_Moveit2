@@ -15,7 +15,8 @@ class FisheyeCameraNode(Node):
         super().__init__('fisheye_camera_node')
         
         # Parameters
-        self.declare_parameter('device_id', '3') # Changed to string to support paths like /dev/video0
+        from rcl_interfaces.msg import ParameterDescriptor
+        self.declare_parameter('device_id', '3', ParameterDescriptor(dynamic_typing=True)) # Support int or string
         self.declare_parameter('frame_id', 'fisheye_camera_link')
         self.declare_parameter('width', 640)
         self.declare_parameter('height', 480)

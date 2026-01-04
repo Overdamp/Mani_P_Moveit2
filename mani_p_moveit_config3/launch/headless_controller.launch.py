@@ -10,7 +10,10 @@ from moveit_configs_utils import MoveItConfigsBuilder
 
 def generate_launch_description():
     # 1. Load MoveIt Configs
-    moveit_config = MoveItConfigsBuilder("Manipulator_station_urdf_2", package_name="mani_p_moveit_config3").to_moveit_configs()
+    moveit_config = MoveItConfigsBuilder("Manipulator_station_urdf_2", package_name="mani_p_moveit_config3") \
+        .trajectory_execution(file_path="config/moveit_controllers.yaml") \
+        .planning_pipelines(pipelines=["ompl", "pilz_industrial_motion_planner"]) \
+        .to_moveit_configs()
 
     # 2. Define Nodes
     

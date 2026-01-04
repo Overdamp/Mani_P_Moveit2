@@ -74,45 +74,13 @@ class MoveLinearActionServer(Node):
         
         self.get_logger().info(f"📏 Moving '{direction}' by {total_distance}m (Incremental)")
         
-        # กำหนดขนาดก้าวเดินย่อย (Step Size) เพื่อลดอาการตกท้องช้าง
-        STEP_SIZE = 0.01 # 1 cm per step (Increased from 2cm)
+        # Execute Single Step
+        success = await self.execute_linear_step(direction, total_distance, goal_handle)
         
-        # คำนวณจำนวนก้าว
-        import math
-        num_steps = int(math.ceil(total_distance / STEP_SIZE))
-        
-        current_distance_moved = 0.0
-        
-        for i in range(num_steps):
-            # ตรวจสอบการยกเลิก
-            if goal_handle.is_cancel_requested:
-                goal_handle.canceled()
-                return MoveLinear.Result(success=False)
-                
-            # คำนวณระยะทางที่จะเดินในรอบนี้
-            remaining = total_distance - current_distance_moved
-            step_dist = min(STEP_SIZE, remaining)
-            
-            if step_dist <= 0.001: break # ถ้าน้อยมากก็หยุด
-            
-            self.get_logger().info(f"   ➡️ Step {i+1}/{num_steps}: Moving {step_dist:.3f}m")
-            
-            # Execute Small Step with Retry (ลองใหม่ได้ 3 ครั้ง)
-            success = False
-            for attempt in range(3):
-                success = await self.execute_linear_step(direction, step_dist, goal_handle)
-                if success:
-                    break
-                self.get_logger().warn(f"      ⚠️ Attempt {attempt+1} failed. Retrying...")
-                time.sleep(1.0) # Wait longer before retry
-            
-            if not success:
-                self.get_logger().error(f"❌ Failed at step {i+1} after 3 attempts")
-                goal_handle.abort()
-                return MoveLinear.Result(success=False)
-                
-            current_distance_moved += step_dist
-            time.sleep(2.0) # พักนิดนึงเพื่อให้หุ่นนิ่งขึ้น
+        if not success:
+            self.get_logger().error(f"❌ Failed to move linear")
+            goal_handle.abort()
+            return MoveLinear.Result(success=False)
             
         goal_handle.succeed()
         return MoveLinear.Result(success=True)
